@@ -43,10 +43,6 @@ public class UserRepository {
         return mapper.insertIdentity(phone, email, passwordHash, locale);
     }
 
-    public boolean updateRole(UUID id, String role) {
-        return mapper.updateRole(id, role) > 0;
-    }
-
     public boolean updatePhone(UUID id, String phone) {
         return mapper.updatePhone(id, phone) > 0;
     }

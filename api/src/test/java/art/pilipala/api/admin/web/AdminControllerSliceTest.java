@@ -12,7 +12,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 import art.pilipala.api.admin.application.AdminGuard;
@@ -31,10 +30,9 @@ import art.pilipala.api.admin.application.RetryAdminJob;
 import art.pilipala.api.admin.application.TopUpUserWallet;
 import art.pilipala.api.admin.application.UpdateModelDisplayConfig;
 import art.pilipala.api.admin.application.UpsertI18nMessage;
-import art.pilipala.api.auth.domain.User;
+import art.pilipala.api.admin.infra.AdminBootstrap;
 import art.pilipala.api.auth.infra.AuthSessionService;
 import art.pilipala.api.auth.infra.SaTokenConfig;
-import art.pilipala.api.auth.infra.UserRepository;
 import art.pilipala.api.billing.application.WalletView;
 import art.pilipala.api.job.domain.ModelProduct;
 import art.pilipala.api.job.domain.ModelProductGroup;
@@ -72,7 +70,7 @@ class AdminControllerSliceTest {
     private AuthSessionService sessions;
 
     @MockitoBean
-    private UserRepository users;
+    private AdminBootstrap adminBootstrap;
 
     @MockitoBean
     private ListAdminUsers listAdminUsers;
@@ -111,7 +109,7 @@ class AdminControllerSliceTest {
 
     @Test
     void aNormalUserIsForbidden() throws Exception {
-        loginAs("user");
+        loginAs(false);
 
         mockMvc.perform(get("/api/v1/admin/users"))
                 .andExpect(status().isOk())
@@ -123,7 +121,7 @@ class AdminControllerSliceTest {
 
     @Test
     void aNormalUserIsForbiddenOnEveryAdminRoute() throws Exception {
-        loginAs("user");
+        loginAs(false);
 
         mockMvc.perform(get("/api/v1/admin/jobs"))
                 .andExpect(jsonPath("$.error_code").value("FORBIDDEN"));
@@ -152,9 +150,9 @@ class AdminControllerSliceTest {
 
     @Test
     void anAdminGetsTheUserList() throws Exception {
-        loginAs("admin");
+        loginAs(true);
         when(listAdminUsers.list(any(), any(Integer.class)))
-                .thenReturn(List.of(new AdminUserView(USER, "demo", "user", "zh", 120L, 30L,
+                .thenReturn(List.of(new AdminUserView(USER, "demo", "zh", 120L, 30L,
                         Instant.parse("2026-10-24T00:00:00Z"), Instant.parse("2026-10-24T01:00:00Z"))));
 
         mockMvc.perform(get("/api/v1/admin/users").param("q", "dem"))
@@ -162,14 +160,13 @@ class AdminControllerSliceTest {
                 .andExpect(jsonPath("$.ok").value(true))
                 .andExpect(jsonPath("$.data[0].user_id").value(USER.toString()))
                 .andExpect(jsonPath("$.data[0].username").value("demo"))
-                .andExpect(jsonPath("$.data[0].role").value("user"))
                 .andExpect(jsonPath("$.data[0].available").value(120))
                 .andExpect(jsonPath("$.data[0].frozen").value(30));
     }
 
     @Test
     void topUpReturnsTheWalletSnapshot() throws Exception {
-        loginAs("admin");
+        loginAs(true);
         when(topUpUserWallet.topUp(eq(USER), eq(100L)))
                 .thenReturn(new WalletView(USER.toString(), 220L, 0L, Instant.parse("2026-10-24T00:00:00Z")));
 
@@ -185,7 +182,7 @@ class AdminControllerSliceTest {
 
     @Test
     void topUpWithANonPositiveAmountUsesTheEnvelope() throws Exception {
-        loginAs("admin");
+        loginAs(true);
         when(topUpUserWallet.topUp(eq(USER), eq(0L))).thenThrow(JobException.validation());
 
         mockMvc.perform(post("/api/v1/admin/wallets/" + USER + "/topup")
@@ -199,7 +196,7 @@ class AdminControllerSliceTest {
 
     @Test
     void theLedgerIsListedForOneUser() throws Exception {
-        loginAs("admin");
+        loginAs(true);
         when(listWalletLedger.list(eq(USER), any(Integer.class)))
                 .thenReturn(List.of(new AdminLedgerEntryView(UUID.randomUUID(), USER, "topup", 100L, null, null,
                         Instant.parse("2026-10-24T00:00:00Z"))));
@@ -215,7 +212,7 @@ class AdminControllerSliceTest {
 
     @Test
     void theUpstreamRawTextOnlyShowsUpInTheAdminResponse() throws Exception {
-        loginAs("admin");
+        loginAs(true);
         when(listAdminJobs.list(any(), any(), any(Integer.class)))
                 .thenReturn(List.of(new AdminJobView(JOB_ID, USER, "demo", "dead", "image.generate", "gpt-image-2",
                         "a cat", 3, 3, null, null, "PROVIDER_UNAVAILABLE",
@@ -236,7 +233,7 @@ class AdminControllerSliceTest {
 
     @Test
     void retryReturnsTheQueuedJob() throws Exception {
-        loginAs("admin");
+        loginAs(true);
         when(retryAdminJob.retry(eq(JOB_ID)))
                 .thenReturn(new AdminJobView(JOB_ID, USER, "demo", "queued", "image.generate", "gpt-image-2",
                         "a cat", 3, 4, null, null, null,
@@ -254,7 +251,7 @@ class AdminControllerSliceTest {
 
     @Test
     void anI18nMessageCanBeUpdated() throws Exception {
-        loginAs("admin");
+        loginAs(true);
         when(listI18nMessages.list(any()))
                 .thenReturn(List.of(new I18nMessageView(UUID.randomUUID(), "WALLET_INSUFFICIENT", "zh",
                         "余额不足，请联系管理员充值。", Instant.parse("2026-10-24T00:00:00Z"))));
@@ -269,7 +266,7 @@ class AdminControllerSliceTest {
 
     @Test
     void theModelConfigIsListedAndUpdated() throws Exception {
-        loginAs("admin");
+        loginAs(true);
         when(listModelDisplayConfig.list())
                 .thenReturn(List.of(new ModelDisplayConfigView(UUID.randomUUID(), "gpt-image-2", "image.generate",
                         "GPT Image 2", true, 10, Instant.parse("2026-10-24T00:00:00Z"))));
@@ -308,7 +305,7 @@ class AdminControllerSliceTest {
 
     @Test
     void anAdminCanReadVideoProductsAndGroups() throws Exception {
-        loginAs("admin");
+        loginAs(true);
         ModelProduct product = new ModelProduct(UUID.randomUUID(), "video-stable", "video.generate",
                 "Video", "test", 30, "{}", true, 10);
         ModelProductGroup group = new ModelProductGroup(UUID.randomUUID(), product.id(), "default", "sd-2-c4",
@@ -331,15 +328,14 @@ class AdminControllerSliceTest {
 
     @Test
     void aNormalUserCannotReadVideoProducts() throws Exception {
-        loginAs("user");
+        loginAs(false);
 
         mockMvc.perform(get("/api/v1/admin/video/products"))
                 .andExpect(jsonPath("$.error_code").value("FORBIDDEN"));
     }
 
-    private void loginAs(String role) {
+    private void loginAs(boolean platformStaff) {
         when(sessions.currentUserId()).thenReturn(USER.toString());
-        Instant now = Instant.now();
-        when(users.findById(USER)).thenReturn(Optional.of(new User(USER, "demo", null, null, "hash", "zh", now, now, role)));
+        when(adminBootstrap.isPlatformStaff(USER)).thenReturn(platformStaff);
     }
 }

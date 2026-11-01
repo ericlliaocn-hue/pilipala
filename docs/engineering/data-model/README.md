@@ -22,6 +22,7 @@
 | `app_runtime_setting` | 运营 | WP18 已落地（`V11`）；Studio chrome seed `V13` | [下方字段](#app_runtime_settingwp18-已落地) | 运行时开关与运营文案（邮箱通道、Studio 顶栏/活动条） |
 | `error_code` | 错误 | — | [errors.md](./errors.md) | **不是表**，是错误码注册表（见该页） |
 | `canvas_project` / `user_asset` | C 端数据 | WP10 已落地（`V6`） | [projects.md](./projects.md) | 画布快照与用户素材，绑定 `user_id` |
+| `tenant` / `tenant_membership` / `role` / `permission` / `role_permission` / `role_assignment` | 租户与 RBAC | M4 已落地（`V24`） | [tenancy.md](./tenancy.md) | 租户边界与平台/租户权限；**钱包属于租户** |
 | 模型展示配置 `model_display_config` | 运营 | WP11 已落地（`V7`） | [下方字段](#model_display_configwp11-已落地) | 只管前端展示与上下架，**不是**渠道密钥表、**不是**额度账本 |
 | `model_product` / `model_product_group` | 视频路由 | WP21 Phase 2（`V19`/`V20`/`V21`） | [WP21 Phase 2 brief](../feature-briefs/2026-10-29-wp21-phase2-newapi-fork.md) | 产品 SKU 与 NewAPI group/model；**不是**渠道密钥表、**不是**额度账本 |
 
@@ -46,9 +47,11 @@
 
 ## `users`（WP17 已落地）
 
-WP17 已实现：见 [WP17 brief](../feature-briefs/2026-10-26-auth-phone-email-identity.md)。基表 `V1`，`role` 在 `V7`，`phone` / `email` 在 `V10`。
+WP17 已实现：见 [WP17 brief](../feature-briefs/2026-10-26-auth-phone-email-identity.md)。基表 `V1`，`phone` / `email` 在 `V10`。
 
 > `users` 只表示登录身份与资料（含 `password_hash`）。**禁止**在用户表存 `available` / `frozen` / 余额类字段；资金只在 [billing.md](./billing.md) 的 `wallet*`。
+>
+> **`role` 列已删除**（M4 `V24`）：运维身份改由 `role_assignment` 表达，见 [tenancy.md](./tenancy.md)。新列 `status` 用来停用账号。
 
 | 字段 | 类型 | 空 | 约束 / 索引 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -58,9 +61,9 @@ WP17 已实现：见 [WP17 brief](../feature-briefs/2026-10-26-auth-phone-email-
 | `email` | TEXT | YES | UNIQUE（非空值） | 小写规范化 |
 | `password_hash` | TEXT | NO | | BCrypt 哈希（strength 10） |
 | `locale` | TEXT | YES | | `zh` / `en` 偏好；空则回退 Accept-Language / zh |
+| `status` | TEXT | NO | DEFAULT `'active'`，CHECK ∈ `active` \| `disabled` | 停用后不能登录 |
 | `created_at` | TIMESTAMPTZ | NO | DEFAULT now() | |
 | `updated_at` | TIMESTAMPTZ | NO | DEFAULT now() | |
-| `role` | TEXT | NO | DEFAULT `'user'`，CHECK ∈ `user` \| `admin` | 命中 `pilipala.admin.bootstrap-phones` / `bootstrap-emails`（或过渡期 `bootstrap-usernames`）在注册或登录时自动升为 `admin` |
 
 **表级 CHECK**（无仅 username 存量行时由 `V10` 落地）：`phone IS NOT NULL OR email IS NOT NULL`。
 

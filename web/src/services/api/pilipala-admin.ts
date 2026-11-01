@@ -14,7 +14,6 @@ import { pilipalaRequest } from "./pilipala-client";
 export type PilipalaAdminUser = {
     user_id: string;
     username: string;
-    role: "user" | "admin";
     locale: string | null;
     available: number;
     frozen: number;

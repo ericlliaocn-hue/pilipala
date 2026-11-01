@@ -2,6 +2,7 @@ package art.pilipala.api.auth.application;
 
 import java.util.UUID;
 
+import art.pilipala.api.admin.infra.AdminBootstrap;
 import art.pilipala.api.auth.domain.IdentityMasker;
 import art.pilipala.api.auth.domain.User;
 import art.pilipala.api.auth.infra.AuthException;
@@ -14,10 +15,12 @@ public class GetCurrentUser {
 
     private final UserRepository users;
     private final AuthSessionService sessions;
+    private final AdminBootstrap adminBootstrap;
 
-    public GetCurrentUser(UserRepository users, AuthSessionService sessions) {
+    public GetCurrentUser(UserRepository users, AuthSessionService sessions, AdminBootstrap adminBootstrap) {
         this.users = users;
         this.sessions = sessions;
+        this.adminBootstrap = adminBootstrap;
     }
 
     public CurrentUser current() {
@@ -34,6 +37,6 @@ public class GetCurrentUser {
                 IdentityMasker.maskPhone(user.phone()),
                 IdentityMasker.maskEmail(user.email()),
                 user.locale(),
-                user.role());
+                adminBootstrap.isPlatformStaff(user.id()) ? "admin" : "user");
     }
 }

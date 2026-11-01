@@ -134,9 +134,9 @@ public class InMemoryAdminStore implements AdminUserRepository, AdminJobReposito
     }
 
     /** 放一个用户。 */
-    public AdminUser putUser(String username, String role, long available, long frozen) {
+    public AdminUser putUser(String username, long available, long frozen) {
         Instant now = Instant.now();
-        AdminUser user = new AdminUser(UUID.randomUUID(), username, role, "zh", available, frozen, now, now);
+        AdminUser user = new AdminUser(UUID.randomUUID(), username, "zh", available, frozen, now, now);
         users.put(user.userId(), user);
         return user;
     }

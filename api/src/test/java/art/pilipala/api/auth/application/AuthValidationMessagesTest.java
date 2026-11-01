@@ -173,6 +173,6 @@ class AuthValidationMessagesTest {
 
     private static User phoneUser() {
         Instant now = Instant.now();
-        return new User(UUID.fromString("11111111-1111-1111-1111-111111111111"), null, PHONE, null, "hash", "zh", now, now, "user");
+        return new User(UUID.fromString("11111111-1111-1111-1111-111111111111"), null, PHONE, null, "hash", "zh", now, now);
     }
 }

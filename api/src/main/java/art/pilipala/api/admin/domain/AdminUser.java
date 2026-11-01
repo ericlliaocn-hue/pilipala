@@ -12,7 +12,6 @@ import java.util.UUID;
 public record AdminUser(
         UUID userId,
         String username,
-        String role,
         String locale,
         long available,
         long frozen,

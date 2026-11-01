@@ -14,6 +14,5 @@ public record User(
         String passwordHash,
         String locale,
         Instant createdAt,
-        Instant updatedAt,
-        String role) {
+        Instant updatedAt) {
 }

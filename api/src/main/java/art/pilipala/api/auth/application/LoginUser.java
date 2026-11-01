@@ -57,7 +57,7 @@ public class LoginUser {
             if (!otpService.verifyAndConsume(OtpPurpose.LOGIN, dest, command.otp())) {
                 throw AuthException.otpInvalid();
             }
-            return sessions.start(adminBootstrap.ensureRole(user));
+            return sessions.start(adminBootstrap.ensureOwner(user));
         }
 
         String password = command.password();
@@ -69,6 +69,6 @@ public class LoginUser {
         if (!hasher.matches(password, user.passwordHash())) {
             throw AuthException.unauthorized();
         }
-        return sessions.start(adminBootstrap.ensureRole(user));
+        return sessions.start(adminBootstrap.ensureOwner(user));
     }
 }

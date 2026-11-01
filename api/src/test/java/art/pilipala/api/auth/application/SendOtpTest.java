@@ -142,6 +142,6 @@ class SendOtpTest {
 
     private static User user(UUID id, String phone, String email) {
         Instant now = Instant.now();
-        return new User(id, null, phone, email, "hash", "zh", now, now, "user");
+        return new User(id, null, phone, email, "hash", "zh", now, now);
     }
 }

@@ -12,7 +12,7 @@ import art.pilipala.api.auth.domain.User;
 @Mapper
 public interface UserMapper {
 
-    String COLS = "id, username, phone, email, password_hash, locale, created_at, updated_at, role";
+    String COLS = "id, username, phone, email, password_hash, locale, created_at, updated_at";
 
     @Select("SELECT " + COLS + " FROM users WHERE username = #{username}")
     User findByUsername(@Param("username") String username);
@@ -39,9 +39,6 @@ public interface UserMapper {
             + "(#{phone,jdbcType=VARCHAR}, #{email,jdbcType=VARCHAR}, #{passwordHash}, #{locale,jdbcType=VARCHAR}) RETURNING " + COLS)
     User insertIdentity(@Param("phone") String phone, @Param("email") String email,
             @Param("passwordHash") String passwordHash, @Param("locale") String locale);
-
-    @Update("UPDATE users SET role = #{role}, updated_at = now() WHERE id = #{id}")
-    int updateRole(@Param("id") UUID id, @Param("role") String role);
 
     @Update("UPDATE users SET phone = #{phone}, updated_at = now() WHERE id = #{id}")
     int updatePhone(@Param("id") UUID id, @Param("phone") String phone);

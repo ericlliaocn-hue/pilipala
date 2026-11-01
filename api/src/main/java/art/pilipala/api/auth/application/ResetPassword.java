@@ -58,6 +58,6 @@ public class ResetPassword {
         }
         users.updatePasswordHash(user.id(), hasher.hash(newPassword));
         User refreshed = users.findById(user.id()).orElseThrow(AuthException::validation);
-        return sessions.start(adminBootstrap.ensureRole(refreshed));
+        return sessions.start(adminBootstrap.ensureOwner(refreshed));
     }
 }

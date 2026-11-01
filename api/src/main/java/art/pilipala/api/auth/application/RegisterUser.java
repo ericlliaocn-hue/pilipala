@@ -75,6 +75,6 @@ public class RegisterUser {
 
         User user = users.insert(phone, email, hasher.hash(password), locale);
         topUpWallet.ensureInitialWallet(user.id());
-        return sessions.start(adminBootstrap.ensureRole(user));
+        return sessions.start(adminBootstrap.ensureOwner(user));
     }
 }

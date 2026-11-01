@@ -12,7 +12,8 @@ WP10 落地的两张表。字段级由 [WP10 brief](../feature-briefs/2026-10-24
 | 字段 | 类型 | 空 | 约束 / 索引 | 说明 |
 | --- | --- | --- | --- | --- |
 | `id` | UUID | NO | PK `DEFAULT gen_random_uuid()` | 项目唯一标识 |
-| `user_id` | UUID | NO | FK → `users(id)` | 所属用户；只允许本人读写删 |
+| `user_id` | UUID | NO | FK → `users(id)` | 所属用户；只允许本人读写删；只表示操作者 |
+| `tenant_id` | UUID | NO | FK → `tenant.id`；IDX (`tenant_id`, `created_at`) | 归属租户（M4 `V24`） |
 | `name` | TEXT | NO | | 项目名称（1..128 字符） |
 | `canvas_data` | JSONB | NO | `DEFAULT '{}'::jsonb` | 画布完整快照（`nodes`、`connections`、`viewport`、`backgroundMode`、`showImageInfo`、`chatSessions`、`activeChatId`） |
 | `version` | BIGINT | NO | `DEFAULT 1 CHECK (version >= 1)` | 乐观递增版本号，每次 `PUT` 更新自动 `+ 1` |
@@ -30,7 +31,8 @@ WP10 落地的两张表。字段级由 [WP10 brief](../feature-briefs/2026-10-24
 | 字段 | 类型 | 空 | 约束 / 索引 | 说明 |
 | --- | --- | --- | --- | --- |
 | `id` | UUID | NO | PK `DEFAULT gen_random_uuid()` | 资产唯一标识 |
-| `user_id` | UUID | NO | FK → `users(id)` | 所属用户 |
+| `user_id` | UUID | NO | FK → `users(id)` | 所属用户；只表示操作者 |
+| `tenant_id` | UUID | NO | FK → `tenant.id`；IDX (`tenant_id`, `created_at`) | 归属租户（M4 `V24`） |
 | `project_id` | UUID | YES | FK → `canvas_project(id) ON DELETE SET NULL` | 关联画布项目（可选，删除项目不删资产） |
 | `job_id` | UUID | YES | FK → `job(id) ON DELETE SET NULL` | 关联生成任务（`source='generated'` 时指向产生该图的 `job.id`） |
 | `source` | TEXT | NO | `CHECK (source IN ('generated', 'uploaded'))` | 资产来源：`generated`（生图落盘）或 `uploaded`（用户上传/登记） |

@@ -1,6 +1,7 @@
 package art.pilipala.api.auth.infra;
 
 import cn.dev33.satoken.stp.StpUtil;
+import art.pilipala.api.admin.infra.AdminBootstrap;
 import art.pilipala.api.auth.application.AuthSession;
 import art.pilipala.api.auth.domain.IdentityMasker;
 import art.pilipala.api.auth.domain.User;
@@ -8,6 +9,12 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class AuthSessionService {
+
+    private final AdminBootstrap adminBootstrap;
+
+    public AuthSessionService(AdminBootstrap adminBootstrap) {
+        this.adminBootstrap = adminBootstrap;
+    }
 
     public AuthSession start(User user) {
         StpUtil.login(user.id().toString());
@@ -21,7 +28,7 @@ public class AuthSessionService {
                 IdentityMasker.maskEmail(user.email()),
                 user.locale(),
                 token,
-                user.role());
+                adminBootstrap.isPlatformStaff(user.id()) ? "admin" : "user");
     }
 
     public String currentUserId() {

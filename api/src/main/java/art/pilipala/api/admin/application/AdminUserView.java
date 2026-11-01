@@ -13,7 +13,6 @@ import art.pilipala.api.admin.domain.AdminUser;
 public record AdminUserView(
         UUID userId,
         String username,
-        String role,
         String locale,
         long available,
         long frozen,
@@ -22,7 +21,7 @@ public record AdminUserView(
 
     /** 领域对象 → 视图。 */
     public static AdminUserView of(AdminUser user) {
-        return new AdminUserView(user.userId(), user.username(), user.role(), user.locale(),
+        return new AdminUserView(user.userId(), user.username(), user.locale(),
                 user.available(), user.frozen(), user.createdAt(), user.updatedAt());
     }
 }

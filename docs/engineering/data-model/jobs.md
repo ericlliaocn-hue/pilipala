@@ -48,7 +48,8 @@ created → queued → running → succeeded
 | 字段 | 类型 | 空 | 约束 / 索引 | 说明 |
 | --- | --- | --- | --- | --- |
 | `id` | UUID | NO | PK | 亦即 MQ 消息体里的 `job_id` |
-| `user_id` | UUID | NO | IDX (`user_id`, `created_at` DESC) | 提交者；FK → `users.id`（`users` 表 WP3 建） |
+| `user_id` | UUID | NO | IDX (`user_id`, `created_at` DESC) | 提交者；FK → `users.id`（`users` 表 WP3 建）；只表示操作者 |
+| `tenant_id` | UUID | NO | FK → `tenant.id`；IDX (`tenant_id`, `created_at`) | 归属租户（M4 `V24`）；归属以它为准 |
 | `status` | TEXT | NO | CHECK ∈ 上表枚举；IDX (`status`, `updated_at`) | 状态机权威 |
 | `capability` | TEXT | NO | | 如 `image.generate` |
 | `model` | TEXT | NO | | pilipala 内部模型名；WP21 起可为产品 code |

@@ -2,7 +2,9 @@
 
 pilipala 只做 **预付费钱包**。Anytoken 侧额度是公司成本，不映射成用户账本。
 
-> 用户余额**只**存在于 `wallet`（及变动流水 `wallet_ledger`）。`users` 表不得镜像余额。
+> 余额**只**存在于 `wallet`（及变动流水 `wallet_ledger`）。`users` 表不得镜像余额。
+>
+> **钱包属于租户**（M4 `V24`）：`wallet.tenant_id` 唯一且非空，`wallet.user_id` 已删除。归属与余额口径见 [tenancy.md](./tenancy.md)。
 
 字段级由 [WP2 brief](../feature-briefs/2026-10-24-wp2-phase1-schema.md) 锁定。本页是 **实现者的照抄源**：列名、类型、约束以本页为准。
 
@@ -41,7 +43,7 @@ job cancelled / dead / 不再重试的失败 → release（解冻）
 | 字段 | 类型 | 空 | 约束 / 索引 | 说明 |
 | --- | --- | --- | --- | --- |
 | `id` | UUID | NO | PK | |
-| `user_id` | UUID | NO | UNIQUE | 一用户一钱包 |
+| `tenant_id` | UUID | NO | UNIQUE；FK → `tenant.id` | **钱包属于租户**：一租户一钱包（M4 `V24` 取代原 `user_id`） |
 | `available` | BIGINT | NO | DEFAULT 0；CHECK >= 0 | 可用 credit |
 | `frozen` | BIGINT | NO | DEFAULT 0；CHECK >= 0 | 已冻未确认 |
 | `updated_at` | TIMESTAMPTZ | NO | DEFAULT now() | |
@@ -53,7 +55,8 @@ job cancelled / dead / 不再重试的失败 → release（解冻）
 | 字段 | 类型 | 空 | 约束 / 索引 | 说明 |
 | --- | --- | --- | --- | --- |
 | `id` | UUID | NO | PK | = `job.hold_id` |
-| `user_id` | UUID | NO | IDX (`user_id`, `created_at`) | 冗余便于对账 |
+| `tenant_id` | UUID | NO | FK → `tenant.id`；IDX (`tenant_id`, `created_at`) | 归属租户（M4 `V24`） |
+| `user_id` | UUID | NO | IDX (`user_id`, `created_at`) | 冗余便于对账；只表示操作者 |
 | `job_id` | UUID | YES | UNIQUE 可空 | 默认与 job 同事务创建 |
 | `amount` | BIGINT | NO | CHECK > 0 | 冻结额 |
 | `status` | TEXT | NO | CHECK ∈ `frozen` \| `confirmed` \| `released` | 终态只进一次 |
@@ -68,7 +71,8 @@ job cancelled / dead / 不再重试的失败 → release（解冻）
 | --- | --- | --- | --- | --- |
 | `id` | UUID | NO | PK | |
 | `wallet_id` | UUID | NO | FK → `wallet.id`；IDX (`wallet_id`, `created_at`) | |
-| `user_id` | UUID | NO | | 冗余便于对账 |
+| `tenant_id` | UUID | NO | FK → `tenant.id`；IDX (`tenant_id`, `created_at`) | 归属租户（M4 `V24`） |
+| `user_id` | UUID | NO | | 冗余便于对账；只表示操作者 |
 | `type` | TEXT | NO | CHECK ∈ `topup` \| `freeze` \| `confirm` \| `release` \| `refund` | |
 | `amount` | BIGINT | NO | CHECK != 0 | 符号约定见下表 |
 | `hold_id` | UUID | YES | FK → `wallet_hold.id` | |
@@ -106,7 +110,8 @@ job cancelled / dead / 不再重试的失败 → release（解冻）
 | 字段 | 类型 | 空 | 约束 / 索引 | 说明 |
 | --- | --- | --- | --- | --- |
 | `id` | UUID | NO | PK | |
-| `user_id` | UUID | NO | IDX (`user_id`, `created_at` DESC)；REFERENCES `users(id)` **无 CASCADE** | |
+| `user_id` | UUID | NO | IDX (`user_id`, `created_at` DESC)；REFERENCES `users(id)` **无 CASCADE** | 操作者 |
+| `tenant_id` | UUID | NO | FK → `tenant.id`；IDX (`tenant_id`, `created_at`) | 归属租户（M4 `V24`） |
 | `out_trade_no` | TEXT | NO | UNIQUE | 前缀 `flr_` + 日期 + 随机 |
 | `provider` | TEXT | NO | DEFAULT `zpay` | |
 | `provider_trade_no` | TEXT | YES | IDX（可空） | 上游 `trade_no` |

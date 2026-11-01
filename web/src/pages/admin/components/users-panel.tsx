@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { App, Button, Empty, Input, InputNumber, Modal, Space, Table, Tag } from "antd";
+import { App, Button, Empty, Input, InputNumber, Modal, Space, Table } from "antd";
 import { RefreshCw, Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -106,12 +106,6 @@ export function UsersPanel({ onForbidden }: { onForbidden: () => void }) {
                 locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t("admin.users.empty")} /> }}
                 columns={[
                     { title: t("admin.users.username"), dataIndex: "username" },
-                    {
-                        title: t("admin.users.role"),
-                        dataIndex: "role",
-                        width: 100,
-                        render: (role: string) => <Tag color={role === "admin" ? "blue" : undefined}>{role}</Tag>,
-                    },
                     { title: t("admin.users.available"), dataIndex: "available", width: 120 },
                     { title: t("admin.users.frozen"), dataIndex: "frozen", width: 120 },
                     {
