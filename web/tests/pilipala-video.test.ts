@@ -66,10 +66,11 @@ test("the managed video channel is used in remote mode without a channel model",
     expect(usesPilipalaManagedVideoChannel({ ...remoteConfig, model: "chan-1::sora-2", videoModel: "chan-1::sora-2" })).toBe(false);
 });
 
-test("the managed video model falls back to seedance2 for unknown models", () => {
-    expect(resolvePilipalaVideoModel(remoteConfig)).toBe("seedance2");
-    expect(resolvePilipalaVideoModel({ ...remoteConfig, model: "seedance2.5", videoModel: "seedance2.5" })).toBe("seedance2.5");
-    expect(resolvePilipalaVideoModel({ ...remoteConfig, model: "unknown-video", videoModel: "unknown-video" })).toBe("seedance2");
+test("the managed video model falls back to the seedance-2-720p-stable product SKU for unknown models", () => {
+    // 只有 model_product 里真实存在的 SKU 才认；seedance2 / seedance2.5 / 未知模型一律回落到默认产品 SKU。
+    expect(resolvePilipalaVideoModel(remoteConfig)).toBe("seedance-2-720p-stable");
+    expect(resolvePilipalaVideoModel({ ...remoteConfig, model: "seedance2.5", videoModel: "seedance2.5" })).toBe("seedance-2-720p-stable");
+    expect(resolvePilipalaVideoModel({ ...remoteConfig, model: "unknown-video", videoModel: "unknown-video" })).toBe("seedance-2-720p-stable");
 });
 
 test("a managed video job submits video.generate and returns a pilipala provider task", async () => {
@@ -81,14 +82,14 @@ test("a managed video job submits video.generate and returns a pilipala provider
     const task = await createVideoGenerationTask(remoteConfig, "a slow pan over the sea");
 
     expect(task.provider).toBe("pilipala");
-    expect(task.model).toBe("seedance2");
+    expect(task.model).toBe("seedance-2-720p-stable");
     expect(task.id).toBe(JOB_ID);
 
     const submit = stub.calls.find((call) => call.url === "/api/v1/jobs/submit");
     expect(submit?.method).toBe("POST");
     const payload = JSON.parse(submit?.body || "{}");
     expect(payload.capability).toBe("video.generate");
-    expect(payload.model).toBe("seedance2");
+    expect(payload.model).toBe("seedance-2-720p-stable");
     expect(payload.params.prompt).toBe("a slow pan over the sea");
     expect(payload.params.duration).toBeGreaterThan(0);
     expect(payload.params.resolution).toBeTruthy();
@@ -107,7 +108,7 @@ test("submitting a managed video job directly keeps the same capability", async 
 
     const submitted = await submitPilipalaVideoJob(remoteConfig, "hello");
     expect(submitted.jobId).toBe(JOB_ID);
-    expect(submitted.model).toBe("seedance2");
+    expect(submitted.model).toBe("seedance-2-720p-stable");
     const payload = JSON.parse(stub.calls[0].body || "{}");
     expect(payload.capability).toBe("video.generate");
     stub.restore();
