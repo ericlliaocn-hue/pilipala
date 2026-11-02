@@ -3,12 +3,11 @@ import { useEffect, useRef } from "react";
 import { Tooltip } from "antd";
 import { BookOpen, Keyboard, Puzzle, Settings2, ShieldCheck, Wallet } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
 
 import { AnimatedThemeToggler } from "@/components/ui/animated-theme-toggler";
 import { GitHubLink } from "@/components/layout/github-link";
 import { VersionReleaseModal } from "@/components/layout/version-release-modal";
-import { DOCS_URL } from "@/constant/env";
+import { ADMIN_CONSOLE_URL, DOCS_URL } from "@/constant/env";
 import { changeAppLocale, type AppLocale } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { canvasThemes } from "@/lib/canvas-theme";
@@ -26,7 +25,6 @@ type UserStatusActionsProps = {
 
 export function UserStatusActions({ showConfig = true, variant = "default", onOpenShortcuts, onOpenPlugins }: UserStatusActionsProps) {
     const { i18n, t } = useTranslation();
-    const navigate = useNavigate();
     const theme = useThemeStore((state) => state.theme);
     const setTheme = useThemeStore((state) => state.setTheme);
     const openConfigDialog = useConfigStore((state) => state.openConfigDialog);
@@ -73,13 +71,20 @@ export function UserStatusActions({ showConfig = true, variant = "default", onOp
                             <span className="max-w-24 truncate">{formatAuthIdentity(user)}</span>
                         </button>
                     </AccountMenuPopover>
-                    {/* WP11：只有管理员才看到运维后台入口。 */}
-                    {user.role === "admin" ? (
+                    {/* 独立运维后台：只有有平台权限码的人才看到入口，跳到 admin.pilipala.art。 */}
+                    {user.platform_permissions?.length ? (
                         <Tooltip title={t("admin.entry")} mouseEnterDelay={0.2}>
-                            <button type="button" className={flatTextClass} style={iconStyle} onClick={() => navigate("/admin")} aria-label={t("admin.entry")}>
+                            <a
+                                href={ADMIN_CONSOLE_URL}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={flatTextClass}
+                                style={iconStyle}
+                                aria-label={t("admin.entry")}
+                            >
                                 <ShieldCheck className="size-3.5" />
                                 {variant === "canvas" ? null : <span>{t("admin.entry")}</span>}
-                            </button>
+                            </a>
                         </Tooltip>
                     ) : null}
                 </>

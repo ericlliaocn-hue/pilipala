@@ -10,7 +10,6 @@ import { StudioUtilityBar } from "@/components/layout/studio/studio-utility-bar"
 
 import { CanvasPluginManagerModal } from "@/components/canvas/canvas-plugin-manager-modal";
 import { CreditSupermarketModal, useCreditSupermarket } from "@/components/layout/studio/credit-supermarket-modal";
-import { useRecharge } from "@/hooks/use-recharge";
 import { useAgentStore } from "@/stores/use-agent-store";
 
 type StudioShellProps = {
@@ -22,7 +21,6 @@ export function StudioShell({ children }: StudioShellProps) {
     const navigate = useNavigate();
     const hideChrome = /^\/canvas\/[^/]+/.test(pathname);
     const isMembershipPage = pathname === "/billing/membership";
-    const handleRecharge = useRecharge();
     const creditStore = useCreditSupermarket();
     const [mobileNavOpen, setMobileNavOpen] = useState(false);
     const [pluginsOpen, setPluginsOpen] = useState(false);
@@ -54,7 +52,7 @@ export function StudioShell({ children }: StudioShellProps) {
     return (
         <>
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-[#0b0b0b] text-neutral-100">
-                <StudioPromoStrip onRecharge={() => void handleRecharge()} />
+                <StudioPromoStrip />
                 <div className="flex min-h-0 flex-1">
                     <StudioSidebar onAgent={togglePanel} onPlugins={() => setPluginsOpen(true)} />
                     <div className="flex min-w-0 flex-1 flex-col overflow-hidden">

@@ -4,6 +4,23 @@ import { Alert, Button, DatePicker, Descriptions, Divider, Drawer, Form, Input, 
 import type { ColumnsType } from "antd/es/table";
 import { ApiError, downloadCsv, getToken, patch, post, put, qs, request, setToken, subscribeMutations } from "./api";
 import { bannerRequestBody, canEnterAdmin, createIdempotencyKey, MENU, topupRequestBody, visibleMenu } from "./access";
+import {
+  adminCreditProductsPath,
+  adminI18nMessagesPath,
+  adminJobsPath,
+  adminMembershipPlanPricesPath,
+  adminMembershipPlansPath,
+  adminModelsPath,
+  adminRetryJob,
+  adminSetCreditProductEnabled,
+  adminSetMembershipPlanEnabled,
+  adminSetMembershipPlanPriceEnabled,
+  adminTopUpWallet,
+  adminUpdateModel,
+  adminUpsertI18nMessage,
+  adminUsersPath,
+  fetchAdminWalletLedger,
+} from "./endpoints";
 
 const { Sider, Header, Content } = Layout;
 const { Title, Text } = Typography;
@@ -87,15 +104,15 @@ function ActionModal({ title, fields, onSubmit, children, buttonText = "新建",
 
 function UsersPage({ permissions, me }: { permissions: string[]; me: Me }) {
   const [query, setQuery] = useState(""); const [dates, setDates] = useState<[string, string]>(["", ""]); const [revealed, setRevealed] = useState<Record<string, string>>({}); const [ledger, setLedger] = useState<{ userId: string; rows: Row[] } | null>(null);
-  const { data, busy, error, refresh } = useLoad<Row[]>(`/api/v1/admin/users${qs({ q: query || undefined, limit: 200 })}`);
+  const { data, busy, error, refresh } = useLoad<Row[]>(adminUsersPath({ q: query, limit: 200 }));
   const rows = data || [];
   const perform = async (fn: () => Promise<unknown>) => { await fn(); message.success("操作已完成"); refresh(); };
   const columns: ColumnsType<Row> = [
     { title: "用户名", dataIndex: "username" }, { title: "用户 ID", dataIndex: "user_id", ellipsis: true }, { title: "语言", dataIndex: "locale" }, { title: "可用积分", dataIndex: "available" }, { title: "冻结积分", dataIndex: "frozen" }, { title: "创建时间", dataIndex: "created_at" },
     { title: "操作", key: "actions", fixed: "right", render: (_, row) => <Space wrap>
       {permissions.includes("user.read_phone") && (revealed[row.user_id] ? <Text>{revealed[row.user_id]}</Text> : <Button size="small" onClick={() => perform(async () => { const result = await post<Row>(`/api/v1/admin/users/${row.user_id}/phone-reveal`); setRevealed((state) => ({ ...state, [row.user_id]: result.phone })); })}>查看</Button>)}
-      {permissions.includes("wallet.topup") && <ActionModal title={`为 ${row.username} 加额`} buttonText="加额" fields={[{ name: "amount", label: "积分数量", required: true, type: "number" }, { name: "reason", label: "原因", required: true, type: "textarea" }]} onSubmit={async (v) => { await post(`/api/v1/admin/wallets/${row.user_id}/topup`, topupRequestBody(v.amount, v.reason)); message.success("加额已提交"); refresh(); }} />}
-      {permissions.includes("ledger.read") && <Button size="small" onClick={async () => { const rows = await request<Row[]>(`/api/v1/admin/wallets/${row.user_id}/ledger`); setLedger({ userId: row.user_id, rows }); }}>流水</Button>}
+      {permissions.includes("wallet.topup") && <ActionModal title={`为 ${row.username} 加额`} buttonText="加额" fields={[{ name: "amount", label: "积分数量", required: true, type: "number" }, { name: "reason", label: "原因", required: true, type: "textarea" }]} onSubmit={async (v) => { await adminTopUpWallet(row.user_id, topupRequestBody(v.amount, v.reason)); message.success("加额已提交"); refresh(); }} />}
+      {permissions.includes("ledger.read") && <Button size="small" onClick={async () => { const rows = await fetchAdminWalletLedger(row.user_id); setLedger({ userId: row.user_id, rows }); }}>流水</Button>}
       {"status" in row && row.user_id !== me.user_id && row.status !== "disabled" && permissions.includes("user.disable") && <ActionModal title={`封禁 ${row.username}`} buttonText="封禁" fields={[{ name: "reason", label: "原因", required: true, type: "textarea" }]} onSubmit={async () => { await post(`/api/v1/admin/users/${row.user_id}/disable`); message.success("账号已封禁"); refresh(); }} />}
       {"status" in row && row.status === "disabled" && permissions.includes("user.enable") && <ActionModal title={`启用 ${row.username}`} buttonText="启用" fields={[{ name: "reason", label: "原因", required: true, type: "textarea" }]} onSubmit={async () => { await post(`/api/v1/admin/users/${row.user_id}/enable`); message.success("账号已启用"); refresh(); }} />}
     </Space> },
@@ -120,9 +137,9 @@ function JobsPage({ permissions }: { permissions: string[] }) {
   const columns: ColumnsType<Row> = [
     { title: "任务 ID", dataIndex: "job_id", ellipsis: true }, { title: "用户", dataIndex: "username" }, { title: "状态", dataIndex: "status" }, { title: "能力", dataIndex: "capability" }, { title: "模型", dataIndex: "model" }, { title: "错误码", dataIndex: "error_code" }, { title: "冻结状态", dataIndex: "hold_status" }, { title: "尝试", render: (_, row) => `${row.attempt}/${row.max_attempts}` }, { title: "创建时间", dataIndex: "created_at" },
     { title: "详情", render: (_, row) => <Button type="link" onClick={() => Modal.info({ title: `任务 ${row.job_id}`, width: 800, content: <div className="job-detail"><Descriptions column={2} items={Object.entries(row).filter(([key]) => !["steps", "provider_tasks"].includes(key)).map(([key, value]) => ({ key, label: labelFor(key), children: display(value) }))} /><Divider /><Title level={5}>步骤</Title><pre>{JSON.stringify(row.steps || [], null, 2)}</pre>{permissions.includes("job.provider_raw") && (row.provider_tasks || []).some((task: Row) => task.raw_status != null || task.raw_body != null) && <><Divider /><Title level={5}>上游原文</Title><pre>{JSON.stringify((row.provider_tasks || []).filter((task: Row) => task.raw_status != null || task.raw_body != null), null, 2)}</pre></>}</div> })}>查看</Button> },
-    { title: "操作", fixed: "right", render: (_, row) => <Space>{permissions.includes("job.retry") && <Button size="small" onClick={() => post(`/api/v1/admin/jobs/${row.job_id}/retry`).then(() => message.success("已提交重试")).catch(showError)}>重试</Button>}{permissions.includes("job.cancel") && <ActionModal title={`取消任务 ${row.job_id}`} buttonText="取消" fields={[{ name: "reason", label: "原因", required: true, type: "textarea" }]} onSubmit={async () => { await post(`/api/v1/admin/jobs/${row.job_id}/cancel`); message.success("任务已取消"); }} />}</Space> },
+    { title: "操作", fixed: "right", render: (_, row) => <Space>{permissions.includes("job.retry") && <Button size="small" onClick={() => adminRetryJob(row.job_id).then(() => message.success("已提交重试")).catch(showError)}>重试</Button>}{permissions.includes("job.cancel") && <ActionModal title={`取消任务 ${row.job_id}`} buttonText="取消" fields={[{ name: "reason", label: "原因", required: true, type: "textarea" }]} onSubmit={async () => { await post(`/api/v1/admin/jobs/${row.job_id}/cancel`); message.success("任务已取消"); }} />}</Space> },
   ];
-  return <><GenericTable title="任务" url={`/api/v1/admin/jobs${qs({ limit: 200 })}`} rowKey="job_id" columns={columns} /></>;
+  return <><GenericTable title="任务" url={adminJobsPath({ limit: 200 })} rowKey="job_id" columns={columns} /></>;
 }
 
 function TenantsPage({ permissions }: { permissions: string[] }) {
@@ -144,7 +161,7 @@ function DictionaryPage({ permissions }: { permissions: string[] }) {
 
 function I18nPage({ permissions }: { permissions: string[] }) {
   const [q, setQ] = useState("");
-  return <><GenericTable title="文案" url={`/api/v1/admin/i18n-messages${qs({ q: q || undefined })}`} extra={<Input.Search placeholder="搜索键" allowClear onSearch={setQ} style={{ width: 260 }} />} rowKey="id" columns={[{ title: "键", dataIndex: "key" }, { title: "语言", dataIndex: "locale" }, { title: "文案模板", dataIndex: "template", ellipsis: true }, { title: "更新时间", dataIndex: "updated_at" }, ...(permissions.includes("i18n.write") ? [{ title: "操作", render: (_: unknown, row: Row) => <ActionModal title={`编辑 ${row.key}`} buttonText="编辑" fields={[{ name: "template", label: "文案模板", required: true, type: "textarea", initial: row.template }]} onSubmit={async (v) => { await put("/api/v1/admin/i18n-messages", { key: row.key, locale: row.locale, template: v.template }); message.success("文案已更新"); }} /> }] : [])]} /></>;
+  return <><GenericTable title="文案" url={adminI18nMessagesPath(q)} extra={<Input.Search placeholder="搜索键" allowClear onSearch={setQ} style={{ width: 260 }} />} rowKey="id" columns={[{ title: "键", dataIndex: "key" }, { title: "语言", dataIndex: "locale" }, { title: "文案模板", dataIndex: "template", ellipsis: true }, { title: "更新时间", dataIndex: "updated_at" }, ...(permissions.includes("i18n.write") ? [{ title: "操作", render: (_: unknown, row: Row) => <ActionModal title={`编辑 ${row.key}`} buttonText="编辑" fields={[{ name: "template", label: "文案模板", required: true, type: "textarea", initial: row.template }]} onSubmit={async (v) => { await adminUpsertI18nMessage({ key: row.key, locale: row.locale, template: v.template }); message.success("文案已更新"); }} /> }] : [])]} /></>;
 }
 
 function BannersPage({ permissions }: { permissions: string[] }) {
@@ -153,7 +170,7 @@ function BannersPage({ permissions }: { permissions: string[] }) {
 }
 
 function ModelsPage({ permissions }: { permissions: string[] }) {
-  return <GenericTable title="模型展示" url="/api/v1/admin/models" rowKey="model" columns={[{ title: "模型", dataIndex: "model" }, { title: "能力", dataIndex: "capability" }, { title: "展示名称", dataIndex: "display_name" }, { title: "启用", dataIndex: "enabled", render: display }, { title: "排序", dataIndex: "sort_order" }, ...(permissions.includes("model.write") ? [{ title: "操作", render: (_: unknown, row: Row) => <ActionModal title={`编辑 ${row.model}`} buttonText="编辑" fields={[{ name: "display_name", label: "展示名称", required: true, initial: row.display_name }, { name: "capability", label: "能力", initial: row.capability }, { name: "enabled", label: "启用", type: "select", options: [{ label: "启用", value: "true" }, { label: "停用", value: "false" }], initial: String(row.enabled) }, { name: "sort_order", label: "排序", type: "number", initial: row.sort_order }]} onSubmit={async (v) => { await put(`/api/v1/admin/models/${encodeURIComponent(row.model)}`, { display_name: v.display_name, capability: v.capability, enabled: v.enabled === "true", sort_order: v.sort_order }); message.success("模型配置已更新"); }} /> }] : [])]} />;
+  return <GenericTable title="模型展示" url={adminModelsPath()} rowKey="model" columns={[{ title: "模型", dataIndex: "model" }, { title: "能力", dataIndex: "capability" }, { title: "展示名称", dataIndex: "display_name" }, { title: "启用", dataIndex: "enabled", render: display }, { title: "排序", dataIndex: "sort_order" }, ...(permissions.includes("model.write") ? [{ title: "操作", render: (_: unknown, row: Row) => <ActionModal title={`编辑 ${row.model}`} buttonText="编辑" fields={[{ name: "display_name", label: "展示名称", required: true, initial: row.display_name }, { name: "capability", label: "能力", initial: row.capability }, { name: "enabled", label: "启用", type: "select", options: [{ label: "启用", value: "true" }, { label: "停用", value: "false" }], initial: String(row.enabled) }, { name: "sort_order", label: "排序", type: "number", initial: row.sort_order }]} onSubmit={async (v) => { await adminUpdateModel(row.model, { display_name: v.display_name, capability: v.capability, enabled: v.enabled === "true", sort_order: v.sort_order }); message.success("模型配置已更新"); }} /> }] : [])]} />;
 }
 
 function VideoPage({ permissions }: { permissions: string[] }) {
@@ -162,13 +179,13 @@ function VideoPage({ permissions }: { permissions: string[] }) {
 }
 
 function CreditProductsPage({ permissions }: { permissions: string[] }) {
-  const columns: ColumnsType<Row> = [{ title: "编码", dataIndex: "code" }, { title: "中文名称", dataIndex: "name_zh" }, { title: "英文名称", dataIndex: "name_en" }, { title: "价格（分）", dataIndex: "price_fen" }, { title: "积分", dataIndex: "credits" }, { title: "赠送", dataIndex: "bonus_credits" }, { title: "启用", dataIndex: "enabled", render: display }, ...(permissions.includes("credit_product.write") ? [{ title: "操作", render: (_: unknown, row: Row) => <Button onClick={() => post(`/api/v1/admin/credit-products/${row.id}/${row.enabled ? "disable" : "enable"}`).then(() => message.success("状态已更新")).catch(showError)}>{row.enabled ? "停用" : "启用"}</Button> }] : [])];
-  return <GenericTable title="积分商品" url="/api/v1/admin/credit-products" rowKey="id" columns={columns} />;
+  const columns: ColumnsType<Row> = [{ title: "编码", dataIndex: "code" }, { title: "中文名称", dataIndex: "name_zh" }, { title: "英文名称", dataIndex: "name_en" }, { title: "价格（分）", dataIndex: "price_fen" }, { title: "积分", dataIndex: "credits" }, { title: "赠送", dataIndex: "bonus_credits" }, { title: "启用", dataIndex: "enabled", render: display }, ...(permissions.includes("credit_product.write") ? [{ title: "操作", render: (_: unknown, row: Row) => <Button onClick={() => adminSetCreditProductEnabled(row.id, !row.enabled).then(() => message.success("状态已更新")).catch(showError)}>{row.enabled ? "停用" : "启用"}</Button> }] : [])];
+  return <GenericTable title="积分商品" url={adminCreditProductsPath()} rowKey="id" columns={columns} />;
 }
 
 function MembershipPage({ permissions }: { permissions: string[] }) {
-  const { data: plans, error: plansError } = useLoad<Row[]>("/api/v1/admin/membership-plans"); const { data: prices, error: pricesError } = useLoad<Row[]>("/api/v1/admin/membership-plans/prices");
-  return <><PageTitle title="会员" />{plansError && <Alert type="error" message={plansError} showIcon />}{pricesError && <Alert type="error" message={pricesError} showIcon />}<Title level={5}>会员方案</Title><Table rowKey="id" dataSource={plans || []} columns={[{ title: "编码", dataIndex: "code" }, { title: "中文名称", dataIndex: "name_zh" }, { title: "英文名称", dataIndex: "name_en" }, { title: "月积分", dataIndex: "credits_per_month" }, { title: "启用", dataIndex: "enabled", render: display }, ...(permissions.includes("membership.write") ? [{ title: "操作", render: (_: unknown, row: Row) => <Button onClick={() => post(`/api/v1/admin/membership-plans/${row.id}/${row.enabled ? "disable" : "enable"}`).then(() => message.success("状态已更新")).catch(showError)}>{row.enabled ? "停用" : "启用"}</Button> }] : [])]} pagination={false} /><Divider /><Title level={5}>方案价格</Title><Table rowKey="id" dataSource={prices || []} columns={[{ title: "方案", dataIndex: "plan_id" }, { title: "周期", dataIndex: "cycle" }, { title: "规格", dataIndex: "variant_code" }, { title: "价格（分）", dataIndex: "price_fen" }, { title: "月积分", dataIndex: "credits_per_month" }, { title: "启用", dataIndex: "enabled", render: display }, ...(permissions.includes("membership.write") ? [{ title: "操作", render: (_: unknown, row: Row) => <Button onClick={() => post(`/api/v1/admin/membership-plans/prices/${row.id}/${row.enabled ? "disable" : "enable"}`).then(() => message.success("价格状态已更新")).catch(showError)}>{row.enabled ? "停用" : "启用"}</Button> }] : [])]} pagination={false} /></>;
+  const { data: plans, error: plansError } = useLoad<Row[]>(adminMembershipPlansPath()); const { data: prices, error: pricesError } = useLoad<Row[]>(adminMembershipPlanPricesPath());
+  return <><PageTitle title="会员" />{plansError && <Alert type="error" message={plansError} showIcon />}{pricesError && <Alert type="error" message={pricesError} showIcon />}<Title level={5}>会员方案</Title><Table rowKey="id" dataSource={plans || []} columns={[{ title: "编码", dataIndex: "code" }, { title: "中文名称", dataIndex: "name_zh" }, { title: "英文名称", dataIndex: "name_en" }, { title: "月积分", dataIndex: "credits_per_month" }, { title: "启用", dataIndex: "enabled", render: display }, ...(permissions.includes("membership.write") ? [{ title: "操作", render: (_: unknown, row: Row) => <Button onClick={() => adminSetMembershipPlanEnabled(row.id, !row.enabled).then(() => message.success("状态已更新")).catch(showError)}>{row.enabled ? "停用" : "启用"}</Button> }] : [])]} pagination={false} /><Divider /><Title level={5}>方案价格</Title><Table rowKey="id" dataSource={prices || []} columns={[{ title: "方案", dataIndex: "plan_id" }, { title: "周期", dataIndex: "cycle" }, { title: "规格", dataIndex: "variant_code" }, { title: "价格（分）", dataIndex: "price_fen" }, { title: "月积分", dataIndex: "credits_per_month" }, { title: "启用", dataIndex: "enabled", render: display }, ...(permissions.includes("membership.write") ? [{ title: "操作", render: (_: unknown, row: Row) => <Button onClick={() => adminSetMembershipPlanPriceEnabled(row.id, !row.enabled).then(() => message.success("价格状态已更新")).catch(showError)}>{row.enabled ? "停用" : "启用"}</Button> }] : [])]} pagination={false} /></>;
 }
 
 function RuntimePage({ permissions }: { permissions: string[] }) {

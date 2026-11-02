@@ -7,4 +7,3 @@ export * from "./api/pilipala-client";
 export * from "./api/pilipala-auth";
 export * from "./api/pilipala-jobs";
 export * from "./api/pilipala-cloud";
-export * from "./api/pilipala-admin";

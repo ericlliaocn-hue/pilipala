@@ -8,9 +8,6 @@ export function useStudioFeatures(): StudioFeatures {
     const fallback = useMemo(
         () =>
             fallbackStudioFeatures({
-                promo_title: t("studio.promo.title"),
-                promo_copy: t("studio.promo.copy"),
-                promo_cta: t("studio.promo.cta"),
                 membership_badge: t("studio.utilities.membershipBadge"),
             }),
         [t],

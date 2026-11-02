@@ -11,7 +11,7 @@ import {
     type MembershipCycle,
 } from "@/components/layout/studio/membership-plan-card";
 import { useCreditSupermarketUi } from "@/components/layout/studio/credit-supermarket-modal";
-import { useStudioFeatures } from "@/components/layout/studio/use-studio-features";
+import { useCurrentBanner } from "@/hooks/use-current-banner";
 import { formatCountdownUnit, usePromoCountdown } from "@/hooks/use-promo-countdown";
 import {
     checkoutMembership,
@@ -20,7 +20,7 @@ import {
     type MembershipPlan,
     type MembershipPlanPrice,
 } from "@/services/api/pilipala-membership";
-import { parsePromoEndMs } from "@/services/api/studio-features";
+import { parseBannerEndMs } from "@/services/api/pilipala-banner";
 import { useAuthStore } from "@/stores/use-auth-store";
 
 function PromoCountdownUnit({ value, label }: { value: string; label: string }) {
@@ -38,7 +38,7 @@ export default function MembershipPage() {
     const { t, i18n } = useTranslation();
     const { message } = App.useApp();
     const navigate = useNavigate();
-    const features = useStudioFeatures();
+    const banner = useCurrentBanner("membership");
     const openCreditStore = useCreditSupermarketUi((s) => s.openStore);
     const user = useAuthStore((state) => state.user);
     const setAuthModalOpen = useAuthStore((state) => state.setAuthModalOpen);
@@ -50,8 +50,7 @@ export default function MembershipPage() {
 
     const localeZh = i18n.language.startsWith("zh");
     const audience = teamMode ? "team" : "personal";
-    const promoEndMs = parsePromoEndMs(features.promo_end_at);
-    const countdown = usePromoCountdown(promoEndMs);
+    const countdown = usePromoCountdown(parseBannerEndMs(banner?.ends_at) ?? 0);
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -115,43 +114,45 @@ export default function MembershipPage() {
         }
     };
 
-    const promoTitle = features.promo_title || t("studio.promo.title");
-    const promoCopy = features.promo_copy || t("membership.promoLine");
+    const promoTitle = banner?.title ?? "";
+    const promoCopy = banner?.subtitle ?? "";
 
     return (
         <div className="min-h-full bg-[#050505] text-neutral-100">
-            <div className="relative overflow-hidden border-b border-white/[0.06]">
-                <div
-                    className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_-20%,rgba(46,184,176,0.35),transparent)]"
-                    aria-hidden
-                />
-                <button
-                    type="button"
-                    className="absolute right-4 top-4 z-10 inline-flex size-9 items-center justify-center rounded-full text-neutral-400 hover:bg-white/10 hover:text-neutral-100"
-                    onClick={() => navigate(-1)}
-                    aria-label={t("common.close")}
-                >
-                    <X className="size-5" />
-                </button>
-                <div className="relative mx-auto flex max-w-[1680px] flex-col gap-8 px-6 py-10 sm:flex-row sm:items-center sm:justify-between sm:px-10 lg:py-12">
-                    <div className="max-w-2xl pr-10">
-                        <h1 className="text-2xl font-semibold leading-snug text-white sm:text-[28px]">{promoTitle}</h1>
-                        <p className="mt-3 text-sm leading-relaxed text-neutral-400">{promoCopy}</p>
-                        <p className="mt-2 text-[13px] text-neutral-500">{t("membership.promoLine")}</p>
-                    </div>
-                    {!countdown.expired ? (
-                        <div className="flex shrink-0 items-center gap-2 sm:gap-3" aria-live="polite">
-                            <PromoCountdownUnit value={formatCountdownUnit(countdown.days)} label={localeZh ? "天" : "Days"} />
-                            <span className="pb-5 text-lg text-neutral-600">:</span>
-                            <PromoCountdownUnit value={formatCountdownUnit(countdown.hours)} label={localeZh ? "时" : "Hrs"} />
-                            <span className="pb-5 text-lg text-neutral-600">:</span>
-                            <PromoCountdownUnit value={formatCountdownUnit(countdown.minutes)} label={localeZh ? "分" : "Min"} />
-                            <span className="pb-5 text-lg text-neutral-600">:</span>
-                            <PromoCountdownUnit value={formatCountdownUnit(countdown.seconds)} label={localeZh ? "秒" : "Sec"} />
+            {banner ? (
+                <div className="relative overflow-hidden border-b border-white/[0.06]">
+                    <div
+                        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_-20%,rgba(46,184,176,0.35),transparent)]"
+                        aria-hidden
+                    />
+                    <button
+                        type="button"
+                        className="absolute right-4 top-4 z-10 inline-flex size-9 items-center justify-center rounded-full text-neutral-400 hover:bg-white/10 hover:text-neutral-100"
+                        onClick={() => navigate(-1)}
+                        aria-label={t("common.close")}
+                    >
+                        <X className="size-5" />
+                    </button>
+                    <div className="relative mx-auto flex max-w-[1680px] flex-col gap-8 px-6 py-10 sm:flex-row sm:items-center sm:justify-between sm:px-10 lg:py-12">
+                        <div className="max-w-2xl pr-10">
+                            <h1 className="text-2xl font-semibold leading-snug text-white sm:text-[28px]">{promoTitle}</h1>
+                            {promoCopy ? <p className="mt-3 text-sm leading-relaxed text-neutral-400">{promoCopy}</p> : null}
+                            <p className="mt-2 text-[13px] text-neutral-500">{t("membership.promoLine")}</p>
                         </div>
-                    ) : null}
+                        {!countdown.expired ? (
+                            <div className="flex shrink-0 items-center gap-2 sm:gap-3" aria-live="polite">
+                                <PromoCountdownUnit value={formatCountdownUnit(countdown.days)} label={localeZh ? "天" : "Days"} />
+                                <span className="pb-5 text-lg text-neutral-600">:</span>
+                                <PromoCountdownUnit value={formatCountdownUnit(countdown.hours)} label={localeZh ? "时" : "Hrs"} />
+                                <span className="pb-5 text-lg text-neutral-600">:</span>
+                                <PromoCountdownUnit value={formatCountdownUnit(countdown.minutes)} label={localeZh ? "分" : "Min"} />
+                                <span className="pb-5 text-lg text-neutral-600">:</span>
+                                <PromoCountdownUnit value={formatCountdownUnit(countdown.seconds)} label={localeZh ? "秒" : "Sec"} />
+                            </div>
+                        ) : null}
+                    </div>
                 </div>
-            </div>
+            ) : null}
 
             <div className="sticky top-0 z-20 border-b border-white/[0.06] bg-[#050505]/95 backdrop-blur-md">
                 <div className="mx-auto flex max-w-[1680px] flex-wrap items-center justify-between gap-4 px-6 py-4 sm:px-10">
@@ -192,14 +193,26 @@ export default function MembershipPage() {
                         })}
                     </div>
 
-                    <button
-                        type="button"
-                        className="inline-flex items-center gap-0.5 text-[13px] text-[#6eb8b2] hover:text-[#8ed4ce]"
-                        onClick={openCreditStore}
-                    >
-                        {t("membership.pointsMarket")}
-                        <ChevronRight className="size-4" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            className="inline-flex items-center gap-0.5 text-[13px] text-[#6eb8b2] hover:text-[#8ed4ce]"
+                            onClick={openCreditStore}
+                        >
+                            {t("membership.pointsMarket")}
+                            <ChevronRight className="size-4" />
+                        </button>
+                        {banner ? null : (
+                            <button
+                                type="button"
+                                className="inline-flex size-9 items-center justify-center rounded-full text-neutral-400 hover:bg-white/10 hover:text-neutral-100"
+                                onClick={() => navigate(-1)}
+                                aria-label={t("common.close")}
+                            >
+                                <X className="size-5" />
+                            </button>
+                        )}
+                    </div>
                 </div>
             </div>
 

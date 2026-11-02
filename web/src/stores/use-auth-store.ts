@@ -7,10 +7,20 @@ import {
     logoutUser,
     registerUser,
     resetPassword as resetPasswordApi,
+    type PilipalaAuthSession,
     type PilipalaUser,
     type PilipalaWallet,
 } from "@/services/api/pilipala-auth";
 import { PilipalaApiError, getStoredPilipalaToken, setStoredPilipalaToken } from "@/services/api/pilipala-client";
+
+/** 登录 / 注册返回的会话里没有平台权限码，登录后补一次 /auth/me。 */
+async function fetchMeOrSession(session: PilipalaAuthSession, fetchImpl?: typeof fetch): Promise<PilipalaUser> {
+    try {
+        return await fetchCurrentUser(fetchImpl);
+    } catch {
+        return session;
+    }
+}
 
 type AuthStore = {
     token: string | null;
@@ -74,7 +84,7 @@ export const useAuthStore = create<AuthStore>()((set, get) => ({
         try {
             const session = await loginUser(input, fetchImpl);
             setStoredPilipalaToken(session.token);
-            set({ token: session.token, user: session, authModalOpen: false });
+            set({ token: session.token, user: await fetchMeOrSession(session, fetchImpl), authModalOpen: false });
             await get().refreshWallet(fetchImpl);
         } finally {
             set({ loading: false });
@@ -86,7 +96,7 @@ export const useAuthStore = create<AuthStore>()((set, get) => ({
         try {
             const session = await registerUser(input, fetchImpl);
             setStoredPilipalaToken(session.token);
-            set({ token: session.token, user: session, authModalOpen: false });
+            set({ token: session.token, user: await fetchMeOrSession(session, fetchImpl), authModalOpen: false });
             await get().refreshWallet(fetchImpl);
         } finally {
             set({ loading: false });
@@ -98,7 +108,7 @@ export const useAuthStore = create<AuthStore>()((set, get) => ({
         try {
             const session = await resetPasswordApi(input, fetchImpl);
             setStoredPilipalaToken(session.token);
-            set({ token: session.token, user: session, authModalOpen: false });
+            set({ token: session.token, user: await fetchMeOrSession(session, fetchImpl), authModalOpen: false });
             await get().refreshWallet(fetchImpl);
         } finally {
             set({ loading: false });

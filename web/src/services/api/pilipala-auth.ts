@@ -5,7 +5,8 @@ export type PilipalaUser = {
     phone: string | null;
     email: string | null;
     locale: string | null;
-    role?: "user" | "admin";
+    /** 平台权限码；为空表示不是平台成员，创作站据此决定是否显示运维后台入口。 */
+    platform_permissions?: string[];
 };
 
 export type PilipalaAuthSession = PilipalaUser & {
