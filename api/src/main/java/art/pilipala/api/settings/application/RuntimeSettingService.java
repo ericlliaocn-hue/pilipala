@@ -4,6 +4,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import art.pilipala.api.job.infra.JobException;
 import art.pilipala.api.settings.domain.AuthRuntimeKeys;
 import art.pilipala.api.settings.infra.AppRuntimeSettingMapper;
 import art.pilipala.api.settings.infra.AppRuntimeSettingMapper.AppRuntimeSettingRow;
@@ -46,24 +47,33 @@ public class RuntimeSettingService {
         return out;
     }
 
+    /**
+     * 后台运行时开关的唯一写入口，收窄到 brief 第 2 节的两个 auth 键：
+     * 其它键、以及不是 {@code true} / {@code false} 的值，一律
+     * {@code VALIDATION_ERROR}，不再静默跳过或把任意字符串压成 false。
+     * 先全量校验再落库，避免一半写进去了才发现有非法键。
+     */
     public Map<String, String> patch(Map<String, String> updates) {
+        if (updates == null) {
+            throw JobException.validation();
+        }
         Map<String, String> changed = new LinkedHashMap<>();
         for (Map.Entry<String, String> entry : updates.entrySet()) {
             String key = entry.getKey();
             if (!AuthRuntimeKeys.KNOWN_KEYS.contains(key)) {
-                continue;
+                throw JobException.validation();
             }
-            String normalized = normalizeBoolean(entry.getValue());
-            mapper.upsert(key, normalized);
-            changed.put(key, normalized);
+            changed.put(key, normalizeBoolean(entry.getValue()));
         }
+        changed.forEach(mapper::upsert);
         return changed;
     }
 
     private static String normalizeBoolean(String raw) {
-        if (raw == null) {
-            return "false";
+        String value = raw == null ? "" : raw.trim().toLowerCase(java.util.Locale.ROOT);
+        if (!value.equals("true") && !value.equals("false")) {
+            throw JobException.validation();
         }
-        return "true".equalsIgnoreCase(raw.trim()) ? "true" : "false";
+        return value;
     }
 }

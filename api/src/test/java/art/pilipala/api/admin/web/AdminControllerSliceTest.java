@@ -28,7 +28,9 @@ import art.pilipala.api.admin.application.ListEnabledModels;
 import art.pilipala.api.admin.application.ListI18nMessages;
 import art.pilipala.api.admin.application.ListAdminRechargeOrders;
 import art.pilipala.api.admin.application.ListModelDisplayConfig;
+import art.pilipala.api.admin.application.CancelAdminJob;
 import art.pilipala.api.admin.application.ListWalletLedger;
+import art.pilipala.api.admin.application.ManageAdminConsole;
 import art.pilipala.api.admin.application.RefundAdminRechargeOrder;
 import art.pilipala.api.admin.application.ModelDisplayConfigView;
 import art.pilipala.api.admin.application.RetryAdminJob;
@@ -102,6 +104,12 @@ class AdminControllerSliceTest {
 
     @MockitoBean
     private RetryAdminJob retryAdminJob;
+
+    @MockitoBean
+    private CancelAdminJob cancelAdminJob;
+
+    @MockitoBean
+    private ManageAdminConsole manageAdminConsole;
 
     @MockitoBean
     private ListI18nMessages listI18nMessages;

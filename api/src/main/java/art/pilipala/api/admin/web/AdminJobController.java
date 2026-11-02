@@ -5,9 +5,11 @@ import java.util.UUID;
 
 import art.pilipala.api.admin.application.AdminGuard;
 import art.pilipala.api.admin.application.AdminJobView;
+import art.pilipala.api.admin.application.CancelAdminJob;
 import art.pilipala.api.admin.application.ListAdminJobs;
 import art.pilipala.api.admin.application.RetryAdminJob;
 import art.pilipala.api.common.ApiResponse;
+import art.pilipala.api.job.application.JobView;
 import art.pilipala.api.job.infra.JobException;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -29,11 +31,14 @@ public class AdminJobController {
     private final AdminGuard guard;
     private final ListAdminJobs jobs;
     private final RetryAdminJob retryJob;
+    private final CancelAdminJob cancelJob;
 
-    public AdminJobController(AdminGuard guard, ListAdminJobs jobs, RetryAdminJob retryJob) {
+    public AdminJobController(AdminGuard guard, ListAdminJobs jobs, RetryAdminJob retryJob,
+            CancelAdminJob cancelJob) {
         this.guard = guard;
         this.jobs = jobs;
         this.retryJob = retryJob;
+        this.cancelJob = cancelJob;
     }
 
     /**
@@ -54,6 +59,13 @@ public class AdminJobController {
     public ApiResponse<AdminJobView> retry(@PathVariable String jobId) {
         guard.require("job.retry");
         return ApiResponse.ok(retryJob.retry(jobIdOf(jobId)));
+    }
+
+    /** 后台取消：按 job id 全局查，只取消非终态；终态回 VALIDATION_ERROR。 */
+    @PostMapping("/{jobId}/cancel")
+    public ApiResponse<JobView> cancel(@PathVariable String jobId) {
+        guard.require("job.cancel");
+        return ApiResponse.ok(cancelJob.cancel(guard.currentUserId(), jobIdOf(jobId)));
     }
 
     /** 查询参数里的 user id 非法时按参数不合法处理；为空表示不过滤。 */

@@ -37,6 +37,14 @@ class AuthPathPolicyTest {
         assertThat(AuthPathPolicy.requiresLogin(AuthPathPolicy.ZPAY_RECHARGE_WEBHOOK_PATH)).isFalse();
     }
 
+    /** 步骤 4 唯一的免登录新路由是当前 Banner；后台 Banner 与其它 banners 路径仍要登录。 */
+    @Test
+    void allowsOnlyTheCurrentBannerPath() {
+        assertThat(AuthPathPolicy.requiresLogin(AuthPathPolicy.BANNERS_CURRENT_PATH)).isFalse();
+        assertThat(AuthPathPolicy.requiresLogin("/api/v1/banners")).isTrue();
+        assertThat(AuthPathPolicy.requiresLogin("/api/v1/admin/banners")).isTrue();
+    }
+
     @Test
     void leavesActuatorAndOtherPathsAlone() {
         assertThat(AuthPathPolicy.requiresLogin("/actuator/health")).isFalse();

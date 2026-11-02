@@ -19,6 +19,8 @@ public final class AuthPathPolicy {
     public static final String CREDIT_PRODUCTS_PATH = "/api/v1/billing/credit-products";
     /** WP20：会员套餐列表（只读，免登录）。 */
     public static final String MEMBERSHIP_PLANS_PATH = "/api/v1/billing/membership-plans";
+    /** M4 步骤 4：当前有效 Banner（只读，免登录；只放行这一条，不放宽 /admin/**）。 */
+    public static final String BANNERS_CURRENT_PATH = "/api/v1/banners/current";
 
     private AuthPathPolicy() {
     }
@@ -41,6 +43,7 @@ public final class AuthPathPolicy {
                 && !STUDIO_FEATURES_PATH.equals(normalized)
                 && !ZPAY_RECHARGE_WEBHOOK_PATH.equals(normalized)
                 && !CREDIT_PRODUCTS_PATH.equals(normalized)
-                && !MEMBERSHIP_PLANS_PATH.equals(normalized);
+                && !MEMBERSHIP_PLANS_PATH.equals(normalized)
+                && !BANNERS_CURRENT_PATH.equals(normalized);
     }
 }
