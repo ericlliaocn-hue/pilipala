@@ -33,7 +33,8 @@ public class InMemoryJobStore implements JobRepository, JobStepRepository, Outbo
     private final Map<String, IdempotencyRecord> idempotency = new LinkedHashMap<>();
 
     @Override
-    public Optional<Job> insertIfAbsent(UUID userId, String capability, String model, UUID productId, UUID targetId,
+    public Optional<Job> insertIfAbsent(UUID tenantId, UUID userId, String capability, String model, UUID productId,
+            UUID targetId,
             String gatewayGroup, String gatewayModel, Integer gatewayTimeoutSeconds, Long quotedPrice,
             String pricingVersion, String paramsJson, String idempotencyKey, UUID holdId) {
         boolean exists = jobs.values().stream()
@@ -42,7 +43,8 @@ public class InMemoryJobStore implements JobRepository, JobStepRepository, Outbo
             return Optional.empty();
         }
         Instant now = Instant.now();
-        Job job = new Job(UUID.randomUUID(), userId, JobStatus.CREATED, capability, model, productId, targetId,
+        Job job = new Job(UUID.randomUUID(), tenantId, userId, JobStatus.CREATED, capability, model, productId,
+                targetId,
                 gatewayGroup, gatewayModel, gatewayTimeoutSeconds, quotedPrice, pricingVersion, paramsJson,
                 0, 3, holdId, idempotencyKey, null, null, null, now, now);
         jobs.put(job.id(), job);
@@ -55,9 +57,9 @@ public class InMemoryJobStore implements JobRepository, JobStepRepository, Outbo
     }
 
     @Override
-    public Optional<Job> findByIdAndUser(UUID jobId, UUID userId) {
+    public Optional<Job> findByIdAndTenant(UUID jobId, UUID tenantId) {
         Job job = jobs.get(jobId);
-        if (job == null || !job.userId().equals(userId)) {
+        if (job == null || !job.tenantId().equals(tenantId)) {
             return Optional.empty();
         }
         return Optional.of(job);
@@ -107,9 +109,9 @@ public class InMemoryJobStore implements JobRepository, JobStepRepository, Outbo
     }
 
     @Override
-    public List<Job> findByUserOrderByCreatedAtDesc(UUID userId, int limit) {
+    public List<Job> findByTenantOrderByCreatedAtDesc(UUID tenantId, int limit) {
         return jobs.values().stream()
-                .filter(job -> job.userId().equals(userId))
+                .filter(job -> job.tenantId().equals(tenantId))
                 .sorted((a, b) -> b.createdAt().compareTo(a.createdAt()))
                 .limit(limit)
                 .toList();
@@ -129,7 +131,7 @@ public class InMemoryJobStore implements JobRepository, JobStepRepository, Outbo
         if (job == null || (job.status() != JobStatus.DEAD && job.status() != JobStatus.FAILED)) {
             return false;
         }
-        jobs.put(jobId, new Job(job.id(), job.userId(), JobStatus.QUEUED, job.capability(), job.model(),
+        jobs.put(jobId, new Job(job.id(), job.tenantId(), job.userId(), JobStatus.QUEUED, job.capability(), job.model(),
                 job.productId(), job.targetId(), job.gatewayGroup(), job.gatewayModel(), job.gatewayTimeoutSeconds(),
                 job.quotedPrice(), job.pricingVersion(),
                 job.paramsJson(), job.attempt(), Math.max(job.maxAttempts(), job.attempt()) + 1,
@@ -221,7 +223,7 @@ public class InMemoryJobStore implements JobRepository, JobStepRepository, Outbo
     }
 
     private static Job copy(Job job, JobStatus status, String errorCode, int attempt, Instant cancelRequestedAt, String resultObjectKeysJson) {
-        return new Job(job.id(), job.userId(), status, job.capability(), job.model(),
+        return new Job(job.id(), job.tenantId(), job.userId(), status, job.capability(), job.model(),
                 job.productId(), job.targetId(), job.gatewayGroup(), job.gatewayModel(), job.gatewayTimeoutSeconds(),
                 job.quotedPrice(), job.pricingVersion(),
                 job.paramsJson(), attempt,

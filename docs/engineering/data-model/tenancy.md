@@ -235,3 +235,5 @@ pilipala 的权限是 **平台 / 租户两个范围的 RBAC**。`users.role` 已
 5. 其余八张表加 `tenant_id` → 按 `user_id` 回填 → 校验没有空值 → 改非空 → 建 `(tenant_id, created_at)` 索引。
 6. 删除 `users.role`。
 7. 种子：权限码、8 个角色、角色权限、字典。
+
+`V25` 接着补两处存量：在该租户上还没有任何 `role_assignment` 的 `active` 个人租户成员补一条 `tenant_owner`（不改已有角色、不再建租户），缺钱包的个人租户补一只 0 余额钱包。此后注册建出来的形状与这条回填相同：`personal` 租户 + `active` 成员 + `tenant_owner` + 挂在该租户上的钱包。

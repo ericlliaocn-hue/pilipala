@@ -15,10 +15,11 @@ public interface WalletLedgerMapper {
 
     String COLS = "id, wallet_id, user_id, type, amount, hold_id, job_id, recharge_order_id, created_at";
 
-    @Select("INSERT INTO wallet_ledger (wallet_id, user_id, type, amount, hold_id, job_id, recharge_order_id) "
-            + "VALUES (#{walletId}, #{userId}, #{type}, #{amount}, #{holdId,jdbcType=OTHER}, #{jobId,jdbcType=OTHER}, "
-            + "#{rechargeOrderId,jdbcType=OTHER}) RETURNING " + COLS)
+    @Select("INSERT INTO wallet_ledger (wallet_id, user_id, tenant_id, type, amount, hold_id, job_id, recharge_order_id) "
+            + "VALUES (#{walletId}, #{userId}, #{tenantId}, #{type}, #{amount}, #{holdId,jdbcType=OTHER}, "
+            + "#{jobId,jdbcType=OTHER}, #{rechargeOrderId,jdbcType=OTHER}) RETURNING " + COLS)
     WalletLedgerEntry insert(
+            @Param("tenantId") UUID tenantId,
             @Param("walletId") UUID walletId,
             @Param("userId") UUID userId,
             @Param("type") String type,

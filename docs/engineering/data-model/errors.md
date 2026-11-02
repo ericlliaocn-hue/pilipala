@@ -37,6 +37,7 @@ C 端默认响应 **只** 含 `error_code` + `message`。原文只在 M4 / WP11 
 | `RECHARGE_PROVIDER_ERROR` | z-pay 下单/查单/退款失败 | WP16；原文仅日志 |
 | `RECHARGE_NOT_REFUNDABLE` | 订单不可退或余额不足扣回 | WP16 Admin 退款 |
 | `OTP_RATE_LIMITED` | 验证码发送冷却或小时/日上限 | WP17；占用冲突仍用 `VALIDATION_ERROR`（文案 key `AUTH_IDENTITY_OCCUPIED`） |
+| `ACCOUNT_DISABLED` | 账号已停用 | M4（admin-console 步骤 2）；登录与重置密码都拒绝，不发会话、不写登录日志中的成功行 |
 
 **未识别上游** → 落到 `PROVIDER_UNAVAILABLE` 或 `JOB_FAILED` 一类泛化码，原文入库。禁止把 `e.getMessage()` 填进 `message`。
 

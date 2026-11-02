@@ -53,6 +53,7 @@ class MybatisReturningMapperContractTest {
         Method method = RechargeOrderMapper.class.getMethod(
                 "insertCreated",
                 java.util.UUID.class,
+                java.util.UUID.class,
                 String.class,
                 String.class,
                 long.class,
@@ -95,6 +96,30 @@ class MybatisReturningMapperContractTest {
             }
         }
         assertThat(returningCount).isGreaterThanOrEqualTo(10);
+    }
+
+    /**
+     * 步骤 3 的红线：钱包只按租户定位。
+     *
+     * <p>{@code wallet.user_id} 已经不在表里，所以任何一条 wallet SQL 都不该再出现它；
+     * 冻结单则要同时带 {@code tenant_id}（钱是谁的）和 {@code user_id}（谁按的操作）。
+     */
+    @Test
+    void walletStatementsAreTenantKeyed() throws Exception {
+        assertThat(WalletRepository.class.getMethods())
+                .noneMatch(method -> method.getName().equals("findByUserId") || method.getName().equals("insertIfAbsent"));
+        assertThat(WalletRepository.class.getMethods()).extracting(Method::getName)
+                .contains("findByTenantId", "openForTenant");
+
+        for (Method method : WalletMapper.class.getDeclaredMethods()) {
+            assertThat(sqlOf(method))
+                    .as("WalletMapper.%s 不该再按 wallet.user_id 读写", method.getName())
+                    .doesNotContainIgnoringCase("user_id");
+        }
+
+        String holdInsert = sqlOf(WalletHoldMapper.class.getMethod(
+                "insert", java.util.UUID.class, java.util.UUID.class, java.util.UUID.class, long.class));
+        assertThat(holdInsert).contains("tenant_id").contains("user_id");
     }
 
     private static String sqlOf(Method method) {

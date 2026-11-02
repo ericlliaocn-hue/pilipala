@@ -16,27 +16,27 @@ public interface CanvasProjectRepository {
      *
      * @param canvasDataJson 画布快照（JSON 文本）
      */
-    CanvasProject insert(UUID userId, String name, String canvasDataJson);
+    CanvasProject insert(UUID tenantId, UUID userId, String name, String canvasDataJson);
 
-    /** 只查本人的项目：他人的项目与不存在的项目一样返回空。 */
-    Optional<CanvasProject> findByIdAndUser(UUID projectId, UUID userId);
+    /** 只查当前租户的项目：他人租户的项目与不存在的项目一样返回空。 */
+    Optional<CanvasProject> findByIdAndTenant(UUID projectId, UUID tenantId);
 
-    /** 本人的项目列表，按最后保存时间倒序。 */
-    List<CanvasProject> findByUser(UUID userId, int limit);
+    /** 当前租户的项目列表，按最后保存时间倒序。 */
+    List<CanvasProject> findByTenant(UUID tenantId, int limit);
 
     /**
-     * 更新本人的项目：version + 1，updated_at 刷新。
+     * 更新当前租户的项目：version + 1，updated_at 刷新。
      *
      * @param name         新名称；null 表示不改
      * @param canvasDataJson 新快照；null 表示不改
      * @return 更新后的项目；不存在或不属于本人时返回空
      */
-    Optional<CanvasProject> update(UUID projectId, UUID userId, String name, String canvasDataJson);
+    Optional<CanvasProject> update(UUID projectId, UUID tenantId, String name, String canvasDataJson);
 
     /**
-     * 删除本人的项目。
+     * 删除当前租户的项目。
      *
      * @return 真的删掉了才为 true
      */
-    boolean delete(UUID projectId, UUID userId);
+    boolean delete(UUID projectId, UUID tenantId);
 }

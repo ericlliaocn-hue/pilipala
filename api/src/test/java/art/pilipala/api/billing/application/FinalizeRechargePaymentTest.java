@@ -6,6 +6,7 @@ import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
+import art.pilipala.api.auth.support.TestPersonalTenants;
 import art.pilipala.api.billing.domain.RechargeOrder;
 import art.pilipala.api.billing.domain.RechargeOrderStatus;
 import art.pilipala.api.billing.domain.WalletLedgerType;
@@ -18,6 +19,7 @@ import org.junit.jupiter.api.Test;
 class FinalizeRechargePaymentTest {
 
     private static final UUID USER = UUID.randomUUID();
+    private static final UUID TENANT = TestPersonalTenants.TENANT;
     private static final UUID ORDER_ID = UUID.randomUUID();
 
     @Test
@@ -39,11 +41,11 @@ class FinalizeRechargePaymentTest {
         FinalizeRechargePayment finalize = new FinalizeRechargePayment(orders, settle);
 
         assertThat(finalize.applyPaid("flr_1", "t1", 1000)).isTrue();
-        assertThat(store.walletOf(USER).available()).isEqualTo(100);
+        assertThat(store.walletOf(TENANT).available()).isEqualTo(100);
         assertThat(store.findLedgerByUserId(USER).get(0).type()).isEqualTo(WalletLedgerType.TOPUP);
         assertThat(store.findLedgerByUserId(USER).get(0).rechargeOrderId()).isEqualTo(ORDER_ID);
         assertThat(finalize.applyPaid("flr_1", "t1", 1000)).isFalse();
-        assertThat(store.walletOf(USER).available()).isEqualTo(100);
+        assertThat(store.walletOf(TENANT).available()).isEqualTo(100);
     }
 
     private static SettleRechargePayment settle(InMemoryWalletStore store, StubOrders orderRepo) {
@@ -61,14 +63,14 @@ class FinalizeRechargePaymentTest {
 
     private static RechargeOrder pendingOrder() {
         return new RechargeOrder(
-                ORDER_ID, USER, "flr_1", "zpay", null, "p10", 1000, 100, RechargeOrderStatus.PENDING_PAY,
+                ORDER_ID, TENANT, USER, "flr_1", "zpay", null, "p10", 1000, 100, RechargeOrderStatus.PENDING_PAY,
                 "127.0.0.1", null, null, null, "n", null, null, 0L, null, null, null, null,
                 art.pilipala.api.billing.domain.RechargeOrderKind.RECHARGE, null, Instant.now(), Instant.now());
     }
 
     private static RechargeOrder paidOrder() {
         return new RechargeOrder(
-                ORDER_ID, USER, "flr_1", "zpay", "t1", "p10", 1000, 100, RechargeOrderStatus.PAID,
+                ORDER_ID, TENANT, USER, "flr_1", "zpay", "t1", "p10", 1000, 100, RechargeOrderStatus.PAID,
                 "127.0.0.1", null, null, null, "n", null, null, 0L, UUID.randomUUID(), Instant.now(), null, null,
                 art.pilipala.api.billing.domain.RechargeOrderKind.RECHARGE, null, Instant.now(), Instant.now());
     }
@@ -128,6 +130,7 @@ class FinalizeRechargePaymentTest {
                 Instant paidAt) {
             return new RechargeOrder(
                     order.id(),
+                    order.tenantId(),
                     order.userId(),
                     order.outTradeNo(),
                     order.provider(),

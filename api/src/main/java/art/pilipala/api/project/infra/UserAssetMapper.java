@@ -16,18 +16,19 @@ public interface UserAssetMapper {
 
     String COLS = "id, user_id, project_id, job_id, source, object_key, mime_type, created_at";
 
-    @Insert("INSERT INTO user_asset (user_id, job_id, source, object_key, mime_type) "
-            + "VALUES (#{userId}, #{jobId}, 'generated', #{objectKey}, #{mimeType}) "
+    @Insert("INSERT INTO user_asset (tenant_id, user_id, job_id, source, object_key, mime_type) "
+            + "VALUES (#{tenantId}, #{userId}, #{jobId}, 'generated', #{objectKey}, #{mimeType}) "
             + "ON CONFLICT (job_id, object_key) DO NOTHING")
     void insertGeneratedIfAbsent(
+            @Param("tenantId") UUID tenantId,
             @Param("userId") UUID userId,
             @Param("jobId") UUID jobId,
             @Param("objectKey") String objectKey,
             @Param("mimeType") String mimeType);
 
-    @Select("SELECT " + COLS + " FROM user_asset WHERE user_id = #{userId} ORDER BY created_at DESC LIMIT #{limit}")
-    List<UserAsset> findByUserAssets(@Param("userId") UUID userId, @Param("limit") int limit);
+    @Select("SELECT " + COLS + " FROM user_asset WHERE tenant_id = #{tenantId} ORDER BY created_at DESC LIMIT #{limit}")
+    List<UserAsset> findByTenantAssets(@Param("tenantId") UUID tenantId, @Param("limit") int limit);
 
-    @Delete("DELETE FROM user_asset WHERE id = #{assetId} AND user_id = #{userId}")
-    int deleteAsset(@Param("assetId") UUID assetId, @Param("userId") UUID userId);
+    @Delete("DELETE FROM user_asset WHERE id = #{assetId} AND tenant_id = #{tenantId}")
+    int deleteAsset(@Param("assetId") UUID assetId, @Param("tenantId") UUID tenantId);
 }

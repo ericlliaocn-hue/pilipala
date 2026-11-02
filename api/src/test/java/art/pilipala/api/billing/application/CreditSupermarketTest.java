@@ -10,6 +10,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
 
+import art.pilipala.api.auth.support.TestPersonalTenants;
 import art.pilipala.api.billing.domain.CreditGrant;
 import art.pilipala.api.billing.domain.CreditProduct;
 import art.pilipala.api.billing.domain.Wallet;
@@ -37,13 +38,16 @@ class CreditSupermarketTest {
         CreditGrantService grants = new CreditGrantService(grantStore, store, store);
         WalletService wallets = new WalletService(store, store, store, grants);
         UUID user = UUID.randomUUID();
-        Wallet wallet = wallets.ensureWallet(user);
+        UUID tenant = TestPersonalTenants.TENANT;
+        Wallet wallet = wallets.ensureWallet(tenant);
         Instant soon = Instant.now().plus(1, ChronoUnit.DAYS);
         Instant later = Instant.now().plus(30, ChronoUnit.DAYS);
-        grantStore.insert(new CreditGrant(0, user, wallet.id(), "recharge", "a", "general", 50, 50, later, null, Instant.now()));
-        grantStore.insert(new CreditGrant(0, user, wallet.id(), "recharge", "b", "general", 50, 50, soon, null, Instant.now()));
-        wallets.credit(user, 100);
-        WalletHold hold = wallets.freeze(user, 60);
+        grantStore.insert(new CreditGrant(0, user, wallet.id(), tenant, "recharge", "a", "general", 50, 50, later,
+                null, Instant.now()));
+        grantStore.insert(new CreditGrant(0, user, wallet.id(), tenant, "recharge", "b", "general", 50, 50, soon,
+                null, Instant.now()));
+        wallets.credit(tenant, user, 100);
+        WalletHold hold = wallets.freeze(tenant, user, 60);
         wallets.confirm(hold.id());
         List<CreditGrant> remaining = grantStore.all();
         CreditGrant earliest = remaining.stream().filter(g -> g.expiresAt().equals(soon)).findFirst().orElseThrow();
@@ -59,13 +63,14 @@ class CreditSupermarketTest {
         CreditGrantService grantService = new CreditGrantService(grantStore, store, store);
         CreditGrantExpireJob job = new CreditGrantExpireJob(grantStore, grantService);
         UUID user = UUID.randomUUID();
-        Wallet wallet = store.insertIfAbsent(user).orElseThrow();
+        UUID tenant = TestPersonalTenants.TENANT;
+        Wallet wallet = store.findWallet(store.openForTenant(tenant)).orElseThrow();
         store.addAvailable(wallet.id(), 80);
         grantStore.insert(new CreditGrant(
-                0, user, wallet.id(), "recharge", "x", "general", 80, 80, Instant.now().minus(1, ChronoUnit.HOURS), null,
-                Instant.now()));
+                0, user, wallet.id(), tenant, "recharge", "x", "general", 80, 80,
+                Instant.now().minus(1, ChronoUnit.HOURS), null, Instant.now()));
         assertThat(job.expireDueGrants()).isEqualTo(1);
-        assertThat(store.walletOf(user).available()).isZero();
+        assertThat(store.walletOf(tenant).available()).isZero();
         assertThat(grantStore.all().get(0).creditsRemaining()).isZero();
         assertThat(store.findLedgerByUserId(user).get(0).type()).isEqualTo(WalletLedgerType.EXPIRE);
     }

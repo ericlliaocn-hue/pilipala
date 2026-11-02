@@ -31,13 +31,13 @@ public class AdminVideoController {
 
     @GetMapping("/products")
     public ApiResponse<List<ModelProduct>> products() {
-        guard.requireAdmin();
+        guard.require("model.read");
         return ApiResponse.ok(catalog.findAllProducts());
     }
 
     @GetMapping("/groups")
     public ApiResponse<List<ModelProductGroup>> groups() {
-        guard.requireAdmin();
+        guard.require("model.read");
         return ApiResponse.ok(catalog.findAllGroups());
     }
 }

@@ -52,6 +52,10 @@ public class ResetPassword {
             throw AuthException.validation();
         }
         User user = lookup.byLoginIdentity(rawPhone, rawEmail).orElseThrow(AuthException::accountNotFound);
+        // 停用账号：不升权、不发会话，也不写登录日志。
+        if (user.disabled()) {
+            throw AuthException.accountDisabled();
+        }
         String dest = phone != null ? phone : email;
         if (!otpService.verifyAndConsume(OtpPurpose.RESET_PASSWORD, dest, otp)) {
             throw AuthException.otpInvalid();

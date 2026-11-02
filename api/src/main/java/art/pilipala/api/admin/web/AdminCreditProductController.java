@@ -34,31 +34,31 @@ public class AdminCreditProductController {
     public ApiResponse<List<AdminCreditProductView>> list(
             @RequestParam(value = "tab", required = false) String tab,
             @RequestParam(value = "enabled", required = false) Boolean enabled) {
-        guard.requireAdmin();
+        guard.require("credit_product.read");
         return ApiResponse.ok(products.list(tab, enabled));
     }
 
     @PostMapping
     public ApiResponse<AdminCreditProductView> create(@RequestBody CreateCreditProductRequest body) {
-        guard.requireAdmin();
+        guard.require("credit_product.write");
         return ApiResponse.ok(products.create(body));
     }
 
     @PutMapping("/{id}")
     public ApiResponse<AdminCreditProductView> update(@PathVariable long id, @RequestBody CreateCreditProductRequest body) {
-        guard.requireAdmin();
+        guard.require("credit_product.write");
         return ApiResponse.ok(products.update(id, body));
     }
 
     @PostMapping("/{id}/enable")
     public ApiResponse<AdminCreditProductView> enable(@PathVariable long id) {
-        guard.requireAdmin();
+        guard.require("credit_product.write");
         return ApiResponse.ok(products.setEnabled(id, true));
     }
 
     @PostMapping("/{id}/disable")
     public ApiResponse<AdminCreditProductView> disable(@PathVariable long id) {
-        guard.requireAdmin();
+        guard.require("credit_product.write");
         return ApiResponse.ok(products.setEnabled(id, false));
     }
 

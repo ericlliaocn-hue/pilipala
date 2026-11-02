@@ -52,14 +52,15 @@ public class MembershipActivationService {
         if (plan == null || !plan.enabled()) {
             throw JobException.validation();
         }
-        if (subscriptions.findActiveByUser(order.userId()) != null) {
+        if (subscriptions.findActiveByTenant(order.tenantId()) != null) {
             throw JobException.validation();
         }
         Instant now = Instant.now();
         Instant periodEnd = MembershipCycle.subscriptionEnd(now, price.cycle());
-        subscriptions.expireActiveForUser(order.userId());
+        subscriptions.expireActiveForTenant(order.tenantId());
         UserSubscription sub = subscriptions.insert(
                 order.userId(),
+                order.tenantId(),
                 plan.id(),
                 plan.code(),
                 price.id(),
@@ -73,16 +74,19 @@ public class MembershipActivationService {
                 price.creditsPerMonth(),
                 now,
                 order.id());
-        Wallet wallet = wallets.ensureWallet(order.userId());
-        grantService.clearSubscriptionGrantRemaining(order.userId(), wallet.id());
-        long granted = issueMonthlyGrant(order.userId(), wallet, sub.id(), price.creditsPerMonth(), now);
-        return wallets.credit(order.userId(), granted, order.id());
+        Wallet wallet = wallets.ensureWallet(order.tenantId());
+        grantService.clearSubscriptionGrantRemaining(order.tenantId(), wallet.id());
+        long granted = issueMonthlyGrant(
+                order.tenantId(), order.userId(), wallet, sub.id(), price.creditsPerMonth(), now);
+        return wallets.credit(order.tenantId(), order.userId(), granted, order.id());
     }
 
     @Transactional
-    public long issueMonthlyGrant(UUID userId, Wallet wallet, long subscriptionId, long credits, Instant from) {
+    public long issueMonthlyGrant(
+            UUID tenantId, UUID userId, Wallet wallet, long subscriptionId, long credits, Instant from) {
         Instant expires = MembershipCycle.grantExpires(from);
-        return grantService.grantForSubscription(userId, wallet, String.valueOf(subscriptionId), credits, expires);
+        return grantService.grantForSubscription(
+                tenantId, userId, wallet, String.valueOf(subscriptionId), credits, expires);
     }
 
     @Transactional
@@ -98,10 +102,11 @@ public class MembershipActivationService {
             if (last.plus(MembershipCycle.GRANT_PERIOD_DAYS, ChronoUnit.DAYS).isAfter(now)) {
                 continue;
             }
-            Wallet wallet = wallets.ensureWallet(sub.userId());
-            grantService.clearSubscriptionGrantRemaining(sub.userId(), wallet.id());
-            long granted = issueMonthlyGrant(sub.userId(), wallet, sub.id(), sub.creditsPerMonth(), now);
-            wallets.credit(sub.userId(), granted);
+            Wallet wallet = wallets.ensureWallet(sub.tenantId());
+            grantService.clearSubscriptionGrantRemaining(sub.tenantId(), wallet.id());
+            long granted = issueMonthlyGrant(
+                    sub.tenantId(), sub.userId(), wallet, sub.id(), sub.creditsPerMonth(), now);
+            wallets.credit(sub.tenantId(), sub.userId(), granted);
             subscriptions.updateLastGrantAt(sub.id(), now);
             processed++;
         }

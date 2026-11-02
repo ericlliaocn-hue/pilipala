@@ -14,16 +14,18 @@ import art.pilipala.api.billing.domain.RechargeOrder;
 @Mapper
 public interface RechargeOrderMapper {
 
-    String COLS = "id, user_id, out_trade_no, provider, provider_trade_no, package_id, money_fen, credits, "
+    String COLS = "id, tenant_id, user_id, out_trade_no, provider, provider_trade_no, package_id, money_fen, credits, "
             + "status, client_ip, device, pay_url, qrcode_url, product_name, product_id, product_code, bonus_credits, "
             + "ledger_id, paid_at, refunded_at, fail_reason, order_kind, plan_price_id, created_at, updated_at";
 
-    @Select("INSERT INTO recharge_order (user_id, out_trade_no, provider, package_id, money_fen, credits, status, "
-            + "client_ip, device, product_name, product_id, product_code, bonus_credits, order_kind, plan_price_id) "
-            + "VALUES (#{userId}, #{outTradeNo}, 'zpay', #{packageId}, #{moneyFen}, #{credits}, #{status}, "
+    @Select("INSERT INTO recharge_order (tenant_id, user_id, out_trade_no, provider, package_id, money_fen, credits, "
+            + "status, client_ip, device, product_name, product_id, product_code, bonus_credits, order_kind, "
+            + "plan_price_id) "
+            + "VALUES (#{tenantId}, #{userId}, #{outTradeNo}, 'zpay', #{packageId}, #{moneyFen}, #{credits}, #{status}, "
             + "#{clientIp}, #{device}, #{productName}, #{productId}, #{productCode}, #{bonusCredits}, "
             + "#{orderKind}, #{planPriceId}) RETURNING " + COLS)
-    RechargeOrder insertCreated(@Param("userId") UUID userId,
+    RechargeOrder insertCreated(@Param("tenantId") UUID tenantId,
+            @Param("userId") UUID userId,
             @Param("outTradeNo") String outTradeNo,
             @Param("packageId") String packageId,
             @Param("moneyFen") long moneyFen,

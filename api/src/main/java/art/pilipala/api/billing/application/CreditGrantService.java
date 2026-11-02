@@ -18,6 +18,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * 积分批次服务。批次与流水都挂在租户的钱包上，{@code userId} 只表示操作者；
+ * 本服务不解析当前租户，{@code tenantId} 由调用方给出。
+ */
 @Service
 public class CreditGrantService {
 
@@ -35,18 +39,19 @@ public class CreditGrantService {
     }
 
     @Transactional
-    public void grantForAdmin(UUID userId, UUID walletId, long amount) {
+    public void grantForAdmin(UUID tenantId, UUID userId, UUID walletId, long amount) {
         if (amount <= 0) {
             throw JobException.validation();
         }
         Instant expires = Instant.now().plus(ADMIN_VALIDITY_DAYS, ChronoUnit.DAYS);
-        grants.insert(new CreditGrant(
-                0L, userId, walletId, "admin", "admin-topup", "general", amount, amount, expires, null,
+        grants.insert(tenantId, new CreditGrant(
+                0L, userId, walletId, tenantId, "admin", "admin-topup", "general", amount, amount, expires, null,
                 Instant.now()));
     }
 
     @Transactional
     public long grantForRecharge(
+            UUID tenantId,
             UUID userId,
             Wallet wallet,
             UUID rechargeOrderId,
@@ -58,15 +63,15 @@ public class CreditGrantService {
         Instant expires = expiresAt(product);
         long total = 0;
         if (baseCredits > 0) {
-            grants.insert(new CreditGrant(
-                    0L, userId, wallet.id(), "recharge", sourceId, "general", baseCredits, baseCredits, expires,
-                    product == null ? null : product.id(), Instant.now()));
+            grants.insert(tenantId, new CreditGrant(
+                    0L, userId, wallet.id(), tenantId, "recharge", sourceId, "general", baseCredits, baseCredits,
+                    expires, product == null ? null : product.id(), Instant.now()));
             total += baseCredits;
         }
         long bonus = fixedBonus + firstPurchaseBonus;
         if (bonus > 0) {
-            grants.insert(new CreditGrant(
-                    0L, userId, wallet.id(), "bonus", sourceId, "bonus", bonus, bonus, expires,
+            grants.insert(tenantId, new CreditGrant(
+                    0L, userId, wallet.id(), tenantId, "bonus", sourceId, "bonus", bonus, bonus, expires,
                     product == null ? null : product.id(), Instant.now()));
             total += bonus;
         }
@@ -74,10 +79,10 @@ public class CreditGrantService {
     }
 
     @Transactional
-    public long grantLegacyRecharge(UUID userId, Wallet wallet, UUID rechargeOrderId, long credits) {
+    public long grantLegacyRecharge(UUID tenantId, UUID userId, Wallet wallet, UUID rechargeOrderId, long credits) {
         Instant expires = Instant.now().plus(730, ChronoUnit.DAYS);
-        grants.insert(new CreditGrant(
-                0L, userId, wallet.id(), "recharge", rechargeOrderId.toString(), "general", credits, credits,
+        grants.insert(tenantId, new CreditGrant(
+                0L, userId, wallet.id(), tenantId, "recharge", rechargeOrderId.toString(), "general", credits, credits,
                 expires, null, Instant.now()));
         return credits;
     }
@@ -114,6 +119,7 @@ public class CreditGrantService {
         }
         grants.updateRemaining(grant.id(), 0);
         return ledger.insert(
+                grant.tenantId(),
                 grant.walletId(),
                 grant.userId(),
                 WalletLedgerType.EXPIRE,
@@ -124,14 +130,16 @@ public class CreditGrantService {
     }
 
     @Transactional
-    public long grantForSubscription(UUID userId, Wallet wallet, String sourceId, long credits, Instant expiresAt) {
+    public long grantForSubscription(
+            UUID tenantId, UUID userId, Wallet wallet, String sourceId, long credits, Instant expiresAt) {
         if (credits <= 0) {
             return 0;
         }
-        grants.insert(new CreditGrant(
+        grants.insert(tenantId, new CreditGrant(
                 0L,
                 userId,
                 wallet.id(),
+                tenantId,
                 "subscription",
                 sourceId,
                 "subscription",
@@ -144,9 +152,9 @@ public class CreditGrantService {
     }
 
     @Transactional
-    public long clearSubscriptionGrantRemaining(UUID userId, UUID walletId) {
+    public long clearSubscriptionGrantRemaining(UUID tenantId, UUID walletId) {
         long total = 0;
-        for (CreditGrant grant : grants.listSubscriptionRemainingForUpdate(userId)) {
+        for (CreditGrant grant : grants.listSubscriptionRemainingForUpdate(tenantId)) {
             long left = grant.creditsRemaining();
             if (left <= 0) {
                 continue;
@@ -155,7 +163,7 @@ public class CreditGrantService {
                 log.warn("订阅重置扣减 available 失败 grant={} wallet={}", grant.id(), walletId);
             }
             grants.updateRemaining(grant.id(), 0);
-            ledger.insert(grant.walletId(), grant.userId(), WalletLedgerType.EXPIRE, -left, null, null, null);
+            ledger.insert(tenantId, grant.walletId(), grant.userId(), WalletLedgerType.EXPIRE, -left, null, null, null);
             total += left;
         }
         return total;

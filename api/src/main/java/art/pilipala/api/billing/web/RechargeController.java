@@ -3,6 +3,7 @@ package art.pilipala.api.billing.web;
 import java.util.List;
 import java.util.UUID;
 
+import art.pilipala.api.auth.application.CurrentTenant;
 import art.pilipala.api.auth.infra.AuthSessionService;
 import art.pilipala.api.billing.application.CreateRechargeOrder;
 import art.pilipala.api.billing.application.GetRechargeOrder;
@@ -23,16 +24,19 @@ import org.springframework.web.bind.annotation.RestController;
 public class RechargeController {
 
     private final AuthSessionService sessions;
+    private final CurrentTenant currentTenant;
     private final ListRechargePackages packages;
     private final CreateRechargeOrder create;
     private final GetRechargeOrder get;
 
     public RechargeController(
             AuthSessionService sessions,
+            CurrentTenant currentTenant,
             ListRechargePackages packages,
             CreateRechargeOrder create,
             GetRechargeOrder get) {
         this.sessions = sessions;
+        this.currentTenant = currentTenant;
         this.packages = packages;
         this.create = create;
         this.get = get;
@@ -45,13 +49,15 @@ public class RechargeController {
 
     @PostMapping("/orders")
     public ApiResponse<RechargeOrderView> create(@RequestBody CreateRequest body, HttpServletRequest request) {
+        UUID userId = userId();
         return ApiResponse.ok(create.create(
-                userId(), body.packageId(), body.productCode(), body.credits(), body.device(), request));
+                userId, currentTenant.require(userId),
+                body.packageId(), body.productCode(), body.credits(), body.device(), request));
     }
 
     @GetMapping("/orders/{outTradeNo}")
     public ApiResponse<RechargeOrderView> get(@PathVariable String outTradeNo) {
-        return ApiResponse.ok(get.get(userId(), outTradeNo));
+        return ApiResponse.ok(get.get(currentTenant.require(userId()), outTradeNo));
     }
 
     private UUID userId() {

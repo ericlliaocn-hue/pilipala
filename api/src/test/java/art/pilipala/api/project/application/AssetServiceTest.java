@@ -17,7 +17,7 @@ import art.pilipala.api.storage.TosUrlSigner;
 import org.junit.jupiter.api.Test;
 
 /**
- * 云端素材用例：自动同步生成结果、现签读地址、删除与跨用户隔离。
+ * 云端素材用例：自动同步生成结果、现签读地址、删除与跨租户隔离。
  */
 class AssetServiceTest {
 
@@ -30,12 +30,14 @@ class AssetServiceTest {
 
     private final UUID owner = UUID.randomUUID();
     private final UUID other = UUID.randomUUID();
+    private final UUID ownerTenant = UUID.randomUUID();
+    private final UUID otherTenant = UUID.randomUUID();
 
     @Test
     void succeededJobsAreSyncedIntoTheAssetTable() {
-        UUID jobId = succeededJob(owner, "anytoken/img/" + owner + "/1.png");
+        UUID jobId = succeededJob(owner, ownerTenant, "anytoken/img/" + owner + "/1.png");
 
-        List<UserAssetView> assets = service.listUserAssets(owner, 100);
+        List<UserAssetView> assets = service.listUserAssets(ownerTenant, 100);
 
         assertThat(assets).hasSize(1);
         assertThat(assets.get(0).jobId()).isEqualTo(jobId.toString());
@@ -46,35 +48,36 @@ class AssetServiceTest {
 
     @Test
     void syncingTwiceDoesNotDuplicateRows() {
-        succeededJob(owner, "anytoken/img/x/1.png");
+        succeededJob(owner, ownerTenant, "anytoken/img/x/1.png");
 
-        service.listUserAssets(owner, 100);
-        service.listUserAssets(owner, 100);
+        service.listUserAssets(ownerTenant, 100);
+        service.listUserAssets(ownerTenant, 100);
 
         assertThat(store.assetCount()).isEqualTo(1);
     }
 
     @Test
-    void anotherUsersJobsAreNotSynced() {
-        succeededJob(other, "anytoken/img/other/1.png");
+    void anotherTenantsJobsAreNotSynced() {
+        succeededJob(other, otherTenant, "anytoken/img/other/1.png");
 
-        assertThat(service.listUserAssets(owner, 100)).isEmpty();
+        assertThat(service.listUserAssets(ownerTenant, 100)).isEmpty();
     }
 
     @Test
     void failedJobsAreNotSynced() {
-        UUID jobId = jobs.insertIfAbsent(owner, "image.generate", "demo", null, null, null, null, "{}", "k1", null).orElseThrow().id();
+        UUID jobId = jobs.insertIfAbsent(ownerTenant, owner, "image.generate", "demo", null, null, null, null,
+                "{}", "k1", null).orElseThrow().id();
         jobs.updateStatus(jobId, JobStatus.CREATED, JobStatus.DEAD, "JOB_FAILED");
 
-        assertThat(service.listUserAssets(owner, 100)).isEmpty();
+        assertThat(service.listUserAssets(ownerTenant, 100)).isEmpty();
     }
 
     @Test
-    void deleteOfSomebodyElseAssetIsNotFound() {
-        succeededJob(owner, "anytoken/img/x/1.png");
-        UserAssetView asset = service.listUserAssets(owner, 100).get(0);
+    void deleteOfAnotherTenantAssetIsNotFound() {
+        succeededJob(owner, ownerTenant, "anytoken/img/x/1.png");
+        UserAssetView asset = service.listUserAssets(ownerTenant, 100).get(0);
 
-        assertThatThrownBy(() -> service.deleteAsset(other, UUID.fromString(asset.id())))
+        assertThatThrownBy(() -> service.deleteAsset(otherTenant, UUID.fromString(asset.id())))
                 .isInstanceOf(ProjectException.class)
                 .extracting("errorCode")
                 .isEqualTo(ErrorCodes.ASSET_NOT_FOUND);
@@ -82,10 +85,10 @@ class AssetServiceTest {
 
     @Test
     void deleteRemovesTheAssetRow() {
-        succeededJob(owner, "anytoken/img/x/1.png");
-        UserAssetView asset = service.listUserAssets(owner, 100).get(0);
+        succeededJob(owner, ownerTenant, "anytoken/img/x/1.png");
+        UserAssetView asset = service.listUserAssets(ownerTenant, 100).get(0);
 
-        DeleteProjectView deleted = service.deleteAsset(owner, UUID.fromString(asset.id()));
+        DeleteProjectView deleted = service.deleteAsset(ownerTenant, UUID.fromString(asset.id()));
 
         assertThat(deleted.deleted()).isTrue();
         assertThat(store.assetCount()).isEqualTo(0);
@@ -97,16 +100,16 @@ class AssetServiceTest {
      */
     @Test
     void aDeletedGeneratedAssetIsSyncedBackFromTheSucceededJob() {
-        succeededJob(owner, "anytoken/img/x/1.png");
-        UserAssetView asset = service.listUserAssets(owner, 100).get(0);
-        service.deleteAsset(owner, UUID.fromString(asset.id()));
+        succeededJob(owner, ownerTenant, "anytoken/img/x/1.png");
+        UserAssetView asset = service.listUserAssets(ownerTenant, 100).get(0);
+        service.deleteAsset(ownerTenant, UUID.fromString(asset.id()));
 
-        assertThat(service.listUserAssets(owner, 100)).hasSize(1);
+        assertThat(service.listUserAssets(ownerTenant, 100)).hasSize(1);
     }
 
     /** 建一条成功且带结果对象键的 job。 */
-    private UUID succeededJob(UUID userId, String objectKey) {
-        UUID jobId = jobs.insertIfAbsent(userId, "image.generate", "demo", null, null, null, null,
+    private UUID succeededJob(UUID userId, UUID tenantId, String objectKey) {
+        UUID jobId = jobs.insertIfAbsent(tenantId, userId, "image.generate", "demo", null, null, null, null,
                         "{\"prompt\":\"hi\"}", "k-" + UUID.randomUUID(), null)
                 .orElseThrow()
                 .id();

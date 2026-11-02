@@ -38,7 +38,7 @@ public class AdminUserController {
     @GetMapping
     public ApiResponse<List<AdminUserView>> list(@RequestParam(value = "q", required = false) String query,
                                                  @RequestParam(value = "limit", defaultValue = "50") int limit) {
-        guard.requireAdmin();
+        guard.require("user.read");
         return ApiResponse.ok(users.list(query, limit));
     }
 }

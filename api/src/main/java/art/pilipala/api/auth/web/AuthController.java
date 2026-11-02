@@ -17,7 +17,9 @@ import art.pilipala.api.auth.application.RegisterUser;
 import art.pilipala.api.auth.application.ResetPassword;
 import art.pilipala.api.auth.application.EmailAuthPolicy;
 import art.pilipala.api.auth.application.SendOtp;
+import art.pilipala.api.billing.infra.ClientIpResolver;
 import art.pilipala.api.common.ApiResponse;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -74,9 +76,9 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ApiResponse<AuthSession> login(@RequestBody LoginRequest request) {
+    public ApiResponse<AuthSession> login(@RequestBody LoginRequest request, HttpServletRequest httpRequest) {
         LoginCommand command = new LoginCommand(request.phone(), request.email(), request.password(), request.otp());
-        return ApiResponse.ok(loginUser.login(command));
+        return ApiResponse.ok(loginUser.login(command, ClientIpResolver.resolve(httpRequest)));
     }
 
     @PostMapping("/password/change")

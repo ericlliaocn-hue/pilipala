@@ -10,7 +10,8 @@ import java.util.UUID;
  * 也不在表里：job 模型与队列实现解耦（ADR 0003）。
  *
  * @param id                主键，也是 MQ 消息体里的 job_id
- * @param userId            提交者
+ * @param userId            提交者（操作者）
+ * @param tenantId          任务归属租户
  * @param status            状态机权威
  * @param capability        如 image.generate
  * @param model             pilipala 内部模型名；WP21 起可为产品 code
@@ -32,6 +33,7 @@ import java.util.UUID;
  */
 public record Job(
         UUID id,
+        UUID tenantId,
         UUID userId,
         JobStatus status,
         String capability,

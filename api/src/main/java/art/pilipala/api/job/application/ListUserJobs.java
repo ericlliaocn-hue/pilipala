@@ -18,7 +18,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 /**
- * C 端生图历史：按创建时间倒序返回本人的任务。
+ * C 端生图历史：按创建时间倒序返回当前租户的任务。
  *
  * <p>WP10 起换浏览器登录也能看到之前生成过的图片：结果读地址在这里现签
  * （ADR 0003），错误文案按当前 locale 解析（ADR 0005）。
@@ -49,15 +49,15 @@ public class ListUserJobs {
     }
 
     /**
-     * 本人的生图历史。
+     * 当前租户的生图历史。
      *
      * @param limit 最多返回多少条（1..100）
      * @param locale 当前语言，用于解析友好错误文案
      */
-    public List<JobHistoryItemView> list(UUID userId, int limit, String locale) {
+    public List<JobHistoryItemView> list(UUID tenantId, int limit, String locale) {
         int clamped = Math.max(1, Math.min(MAX_LIMIT, limit));
         List<JobHistoryItemView> items = new ArrayList<>();
-        for (Job job : jobs.findByUserOrderByCreatedAtDesc(userId, clamped)) {
+        for (Job job : jobs.findByTenantOrderByCreatedAtDesc(tenantId, clamped)) {
             items.add(toItem(job, locale));
         }
         return items;

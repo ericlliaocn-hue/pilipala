@@ -46,8 +46,8 @@ public class GetJobResult {
         this.i18n = i18n;
     }
 
-    public JobResultView result(UUID userId, UUID jobId, String locale) {
-        Job job = jobs.findByIdAndUser(jobId, userId).orElseThrow(JobException::notFound);
+    public JobResultView result(UUID tenantId, UUID jobId, String locale) {
+        Job job = jobs.findByIdAndTenant(jobId, tenantId).orElseThrow(JobException::notFound);
         holds.settle(job.holdId(), job.status());
         List<JobOutput> outputs = job.status() == JobStatus.SUCCEEDED ? outputs(job) : List.of();
         String errorCode = job.errorCode();

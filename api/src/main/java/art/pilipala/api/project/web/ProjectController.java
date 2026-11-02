@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.UUID;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import art.pilipala.api.auth.application.CurrentTenant;
 import art.pilipala.api.auth.infra.AuthException;
 import art.pilipala.api.auth.infra.AuthSessionService;
 import art.pilipala.api.common.ApiResponse;
@@ -25,7 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
  * C 端云端画布项目接口。
  *
  * <p>鉴权闸门由 WP3 的 {@code AuthPathPolicy} 覆盖整个 {@code /api/v1/**}，
- * 这里只负责从会话取 user_id（禁止信任请求体里的 user id）。
+ * 这里从会话取 user_id 与当前租户（禁止信任请求体里的 user id）。
  *
  * <p>失败一律走统一信封（HTTP 200 + ok=false + error_code + message）。
  */
@@ -34,37 +35,46 @@ import org.springframework.web.bind.annotation.RestController;
 public class ProjectController {
 
     private final AuthSessionService sessions;
+    private final CurrentTenant currentTenant;
     private final ProjectService projects;
 
-    public ProjectController(AuthSessionService sessions, ProjectService projects) {
+    public ProjectController(AuthSessionService sessions, CurrentTenant currentTenant, ProjectService projects) {
         this.sessions = sessions;
+        this.currentTenant = currentTenant;
         this.projects = projects;
     }
 
     @PostMapping
     public ApiResponse<ProjectDetailView> create(@RequestBody CreateProjectRequest request) {
-        return ApiResponse.ok(projects.create(currentUserId(), request.name(), request.canvasData()));
+        UUID userId = currentUserId();
+        return ApiResponse.ok(projects.create(userId, tenantOf(userId), request.name(), request.canvasData()));
     }
 
     @GetMapping
     public ApiResponse<List<ProjectSummaryView>> list() {
-        return ApiResponse.ok(projects.list(currentUserId()));
+        return ApiResponse.ok(projects.list(tenantOf(currentUserId())));
     }
 
     @GetMapping("/{projectId}")
     public ApiResponse<ProjectDetailView> get(@PathVariable String projectId) {
-        return ApiResponse.ok(projects.get(currentUserId(), projectIdOf(projectId)));
+        return ApiResponse.ok(projects.get(tenantOf(currentUserId()), projectIdOf(projectId)));
     }
 
     @PutMapping("/{projectId}")
     public ApiResponse<ProjectDetailView> update(@PathVariable String projectId,
                                                   @RequestBody UpdateProjectRequest request) {
-        return ApiResponse.ok(projects.update(currentUserId(), projectIdOf(projectId), request.name(), request.canvasData()));
+        return ApiResponse.ok(projects.update(
+                tenantOf(currentUserId()), projectIdOf(projectId), request.name(), request.canvasData()));
     }
 
     @DeleteMapping("/{projectId}")
     public ApiResponse<DeleteProjectView> delete(@PathVariable String projectId) {
-        return ApiResponse.ok(projects.delete(currentUserId(), projectIdOf(projectId)));
+        return ApiResponse.ok(projects.delete(tenantOf(currentUserId()), projectIdOf(projectId)));
+    }
+
+    /** 当前会话的当前租户；解析不出来是 FORBIDDEN。 */
+    private UUID tenantOf(UUID userId) {
+        return currentTenant.require(userId);
     }
 
     private UUID currentUserId() {

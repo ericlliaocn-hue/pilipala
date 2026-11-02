@@ -18,6 +18,7 @@ import art.pilipala.api.auth.domain.OtpPurpose;
 import art.pilipala.api.auth.domain.User;
 import art.pilipala.api.auth.infra.AuthException;
 import art.pilipala.api.auth.infra.AuthSessionService;
+import art.pilipala.api.auth.infra.LoginLog;
 import art.pilipala.api.auth.infra.PasswordHasher;
 import art.pilipala.api.auth.infra.UserRepository;
 import art.pilipala.api.billing.application.TopUpWallet;
@@ -50,6 +51,12 @@ class AuthValidationMessagesTest {
     private UserRepository users;
     @Mock
     private TopUpWallet topUpWallet;
+    @Mock
+    private CreatePersonalTenant createPersonalTenant;
+    @Mock
+    private PersonalTenants personalTenants;
+    @Mock
+    private LoginLog loginLog;
 
     @InjectMocks
     private LoginUser loginUser;
@@ -66,7 +73,7 @@ class AuthValidationMessagesTest {
     void otpLoginOfAnUnknownAccountKeepsValidationCodeAndAccountNotFoundKey() {
         when(lookup.byLoginIdentity(PHONE, null)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> loginUser.login(new LoginCommand(PHONE, null, null, "132442")))
+        assertThatThrownBy(() -> loginUser.login(new LoginCommand(PHONE, null, null, "132442"), "127.0.0.1"))
                 .isInstanceOf(AuthException.class)
                 .satisfies(e -> assertAuth((AuthException) e, AuthException.MESSAGE_KEY_ACCOUNT_NOT_FOUND));
         verify(otpService, never()).verifyAndConsume(any(), anyString(), anyString());
@@ -77,7 +84,7 @@ class AuthValidationMessagesTest {
         when(lookup.byLoginIdentity(PHONE, null)).thenReturn(Optional.of(phoneUser()));
         when(otpService.verifyAndConsume(OtpPurpose.LOGIN, PHONE, "000000")).thenReturn(false);
 
-        assertThatThrownBy(() -> loginUser.login(new LoginCommand(PHONE, null, null, "000000")))
+        assertThatThrownBy(() -> loginUser.login(new LoginCommand(PHONE, null, null, "000000"), "127.0.0.1"))
                 .isInstanceOf(AuthException.class)
                 .satisfies(e -> assertAuth((AuthException) e, AuthException.MESSAGE_KEY_OTP_INVALID));
     }
@@ -173,6 +180,7 @@ class AuthValidationMessagesTest {
 
     private static User phoneUser() {
         Instant now = Instant.now();
-        return new User(UUID.fromString("11111111-1111-1111-1111-111111111111"), null, PHONE, null, "hash", "zh", now, now);
+        return new User(UUID.fromString("11111111-1111-1111-1111-111111111111"), null, PHONE, null, "hash", "zh",
+                "active", now, now);
     }
 }

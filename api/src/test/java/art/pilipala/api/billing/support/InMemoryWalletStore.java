@@ -24,7 +24,7 @@ import art.pilipala.api.billing.infra.WalletRepository;
 /**
  * 内存版钱包仓储：账本测试不需要 Postgres。
  *
- * <p>行为对齐 {@code Jdbc*}Repository 的语义（一用户一钱包、余额守卫、
+ * <p>行为对齐 {@code Jdbc*}Repository 的语义（一租户一钱包、余额守卫、
  * 冻结单终态只进一次），只是把数据放在内存里。三个仓储接口一起实现，
  * 方便用例直接拿到同一份数据。
  *
@@ -54,19 +54,16 @@ public class InMemoryWalletStore implements WalletRepository, WalletHoldReposito
     }
 
     @Override
-    public Optional<Wallet> findByUserId(UUID userId) {
-        return wallets.values().stream().filter(wallet -> wallet.userId().equals(userId)).findFirst();
+    public Optional<Wallet> findByTenantId(UUID tenantId) {
+        return wallets.values().stream().filter(wallet -> wallet.tenantId().equals(tenantId)).findFirst();
     }
 
+    /** 钱包属于租户：新租户的钱包 {@code available = frozen = 0}。 */
     @Override
-    public Optional<Wallet> insertIfAbsent(UUID userId) {
-        if (findByUserId(userId).isPresent()) {
-            return Optional.empty();
-        }
-        Instant now = Instant.now();
-        Wallet wallet = new Wallet(UUID.randomUUID(), userId, 0, 0, now);
+    public UUID openForTenant(UUID tenantId) {
+        Wallet wallet = new Wallet(UUID.randomUUID(), tenantId, 0, 0, Instant.now());
         wallets.put(wallet.id(), wallet);
-        return Optional.of(wallet);
+        return wallet.id();
     }
 
     @Override
@@ -75,7 +72,7 @@ public class InMemoryWalletStore implements WalletRepository, WalletHoldReposito
         if (wallet == null || wallet.available() < amount) {
             return false;
         }
-        wallets.put(walletId, new Wallet(wallet.id(), wallet.userId(), wallet.available() - amount,
+        save(new Wallet(wallet.id(), wallet.tenantId(), wallet.available() - amount,
                 wallet.frozen() + amount, Instant.now()));
         return true;
     }
@@ -86,7 +83,7 @@ public class InMemoryWalletStore implements WalletRepository, WalletHoldReposito
         if (wallet == null) {
             return false;
         }
-        wallets.put(walletId, new Wallet(wallet.id(), wallet.userId(), wallet.available() + amount,
+        save(new Wallet(wallet.id(), wallet.tenantId(), wallet.available() + amount,
                 wallet.frozen(), Instant.now()));
         return true;
     }
@@ -97,7 +94,7 @@ public class InMemoryWalletStore implements WalletRepository, WalletHoldReposito
         if (wallet == null || wallet.available() < amount) {
             return false;
         }
-        wallets.put(walletId, new Wallet(wallet.id(), wallet.userId(), wallet.available() - amount,
+        save(new Wallet(wallet.id(), wallet.tenantId(), wallet.available() - amount,
                 wallet.frozen(), Instant.now()));
         return true;
     }
@@ -108,7 +105,7 @@ public class InMemoryWalletStore implements WalletRepository, WalletHoldReposito
         if (wallet == null || wallet.frozen() < amount) {
             return false;
         }
-        wallets.put(walletId, new Wallet(wallet.id(), wallet.userId(), wallet.available(),
+        save(new Wallet(wallet.id(), wallet.tenantId(), wallet.available(),
                 wallet.frozen() - amount, Instant.now()));
         return true;
     }
@@ -119,7 +116,7 @@ public class InMemoryWalletStore implements WalletRepository, WalletHoldReposito
         if (wallet == null || wallet.frozen() < amount) {
             return false;
         }
-        wallets.put(walletId, new Wallet(wallet.id(), wallet.userId(), wallet.available() + amount,
+        save(new Wallet(wallet.id(), wallet.tenantId(), wallet.available() + amount,
                 wallet.frozen() - amount, Instant.now()));
         return true;
     }
@@ -127,8 +124,8 @@ public class InMemoryWalletStore implements WalletRepository, WalletHoldReposito
     // ----- wallet_hold -----
 
     @Override
-    public WalletHold insert(UUID userId, UUID jobId, long amount) {
-        WalletHold hold = new WalletHold(UUID.randomUUID(), userId, jobId, amount, WalletHoldStatus.FROZEN,
+    public WalletHold insert(UUID tenantId, UUID userId, UUID jobId, long amount) {
+        WalletHold hold = new WalletHold(UUID.randomUUID(), tenantId, userId, jobId, amount, WalletHoldStatus.FROZEN,
                 Instant.now(), null);
         holds.put(hold.id(), hold);
         return hold;
@@ -145,8 +142,8 @@ public class InMemoryWalletStore implements WalletRepository, WalletHoldReposito
         if (hold == null || hold.status() != WalletHoldStatus.FROZEN) {
             return Optional.empty();
         }
-        WalletHold finalized = new WalletHold(hold.id(), hold.userId(), hold.jobId(), hold.amount(), target,
-                hold.createdAt(), Instant.now());
+        WalletHold finalized = new WalletHold(hold.id(), hold.tenantId(), hold.userId(), hold.jobId(), hold.amount(),
+                target, hold.createdAt(), Instant.now());
         holds.put(holdId, finalized);
         return Optional.of(finalized);
     }
@@ -157,21 +154,21 @@ public class InMemoryWalletStore implements WalletRepository, WalletHoldReposito
         if (hold == null || hold.jobId() != null) {
             return false;
         }
-        holds.put(holdId, new WalletHold(hold.id(), hold.userId(), jobId, hold.amount(), hold.status(),
-                hold.createdAt(), hold.finalizedAt()));
+        holds.put(holdId, new WalletHold(hold.id(), hold.tenantId(), hold.userId(), jobId, hold.amount(),
+                hold.status(), hold.createdAt(), hold.finalizedAt()));
         return true;
     }
 
     @Override
-    public List<PendingSettlement> findPendingSettlement(UUID userId, int limit) {
+    public List<PendingSettlement> findPendingSettlement(UUID tenantId, int limit) {
         return holds.values().stream()
                 .filter(hold -> hold.status() == WalletHoldStatus.FROZEN)
-                .filter(hold -> userId == null || hold.userId().equals(userId))
+                .filter(hold -> tenantId == null || hold.tenantId().equals(tenantId))
                 .filter(hold -> hold.jobId() != null)
                 .filter(hold -> jobState(hold.jobId()) != null)
                 .sorted(Comparator.comparing(WalletHold::createdAt))
                 .limit(limit)
-                .map(hold -> new PendingSettlement(hold.id(), hold.userId(), hold.jobId(), hold.amount(),
+                .map(hold -> new PendingSettlement(hold.id(), hold.tenantId(), hold.jobId(), hold.amount(),
                         jobState(hold.jobId())))
                 .toList();
     }
@@ -179,8 +176,8 @@ public class InMemoryWalletStore implements WalletRepository, WalletHoldReposito
     // ----- wallet_ledger -----
 
     @Override
-    public WalletLedgerEntry insert(UUID walletId, UUID userId, WalletLedgerType type, long amount, UUID holdId,
-            UUID jobId, UUID rechargeOrderId) {
+    public WalletLedgerEntry insert(UUID tenantId, UUID walletId, UUID userId, WalletLedgerType type, long amount,
+            UUID holdId, UUID jobId, UUID rechargeOrderId) {
         WalletLedgerEntry entry = new WalletLedgerEntry(UUID.randomUUID(), walletId, userId, type, amount, holdId,
                 jobId, rechargeOrderId, Instant.now());
         ledger.add(entry);
@@ -227,9 +224,18 @@ public class InMemoryWalletStore implements WalletRepository, WalletHoldReposito
         return List.copyOf(holds.values());
     }
 
-    /** 某个用户的钱包快照。 */
-    public Wallet walletOf(UUID userId) {
-        return findByUserId(userId).orElseThrow();
+    /** 某个租户的钱包快照。 */
+    public Wallet walletOf(UUID tenantId) {
+        return findByTenantId(tenantId).orElseThrow();
+    }
+
+    /** 某个钱包 id 的快照。 */
+    public Wallet walletById(UUID walletId) {
+        return findWallet(walletId).orElseThrow();
+    }
+
+    private void save(Wallet wallet) {
+        wallets.put(wallet.id(), wallet);
     }
 
     private JobTerminalState jobState(UUID jobId) {

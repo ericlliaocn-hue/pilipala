@@ -68,6 +68,11 @@ public class AuthException extends RuntimeException {
         return new AuthException(ErrorCodes.VALIDATION_ERROR, MESSAGE_KEY_ALREADY_REGISTERED);
     }
 
+    /** 账号已停用：登录与重置密码都拒绝，不发会话，也不引导平台角色。 */
+    public static AuthException accountDisabled() {
+        return new AuthException(ErrorCodes.ACCOUNT_DISABLED, ErrorCodes.ACCOUNT_DISABLED);
+    }
+
     public String errorCode() {
         return errorCode;
     }

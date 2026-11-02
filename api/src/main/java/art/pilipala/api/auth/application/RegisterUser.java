@@ -10,8 +10,8 @@ import art.pilipala.api.auth.infra.AuthException;
 import art.pilipala.api.auth.infra.AuthSessionService;
 import art.pilipala.api.auth.infra.PasswordHasher;
 import art.pilipala.api.auth.infra.UserRepository;
-import art.pilipala.api.billing.application.TopUpWallet;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class RegisterUser {
@@ -22,22 +22,28 @@ public class RegisterUser {
     private final UserRepository users;
     private final PasswordHasher hasher;
     private final AuthSessionService sessions;
-    private final TopUpWallet topUpWallet;
+    private final CreatePersonalTenant personalTenant;
     private final AdminBootstrap adminBootstrap;
     private final OtpService otpService;
     private final EmailAuthPolicy emailAuthPolicy;
 
-    public RegisterUser(UserRepository users, PasswordHasher hasher, AuthSessionService sessions, TopUpWallet topUpWallet,
-            AdminBootstrap adminBootstrap, OtpService otpService, EmailAuthPolicy emailAuthPolicy) {
+    public RegisterUser(UserRepository users, PasswordHasher hasher, AuthSessionService sessions,
+            CreatePersonalTenant personalTenant, AdminBootstrap adminBootstrap, OtpService otpService,
+            EmailAuthPolicy emailAuthPolicy) {
         this.users = users;
         this.hasher = hasher;
         this.sessions = sessions;
-        this.topUpWallet = topUpWallet;
+        this.personalTenant = personalTenant;
         this.adminBootstrap = adminBootstrap;
         this.otpService = otpService;
         this.emailAuthPolicy = emailAuthPolicy;
     }
 
+    /**
+     * 注册。用户行、个人租户、成员、{@code tenant_owner}、钱包在同一个事务里，
+     * 任一步失败一起回滚；成功后再引导平台所有者并发会话。
+     */
+    @Transactional
     public AuthSession register(RegisterCommand command) {
         String rawPhone = command.phone();
         String rawEmail = command.email();
@@ -74,7 +80,7 @@ public class RegisterUser {
         }
 
         User user = users.insert(phone, email, hasher.hash(password), locale);
-        topUpWallet.ensureInitialWallet(user.id());
+        personalTenant.create(user);
         return sessions.start(adminBootstrap.ensureOwner(user));
     }
 }

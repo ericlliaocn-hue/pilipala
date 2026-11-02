@@ -10,20 +10,25 @@ import art.pilipala.api.billing.domain.Wallet;
 
 import org.apache.ibatis.annotations.Mapper;
 
+/**
+ * 钱包余额的读写。{@code wallet.user_id} 已在 {@code V24} 删除，钱包只按 {@code tenant_id} 定位。
+ *
+ * <p>五条金额 SQL 的公式是账本红线，改动金额语义需要在 brief 里说明，不要在业务步骤里顺手改。
+ */
 @Mapper
 public interface WalletMapper {
 
-    String COLS = "id, user_id, available, frozen, updated_at";
+    String COLS = "id, tenant_id, available, frozen, updated_at";
 
     @Select("SELECT " + COLS + " FROM wallet WHERE id = #{walletId}")
     Wallet findWallet(@Param("walletId") UUID walletId);
 
-    @Select("SELECT " + COLS + " FROM wallet WHERE user_id = #{userId}")
-    Wallet findByUserId(@Param("userId") UUID userId);
+    @Select("SELECT " + COLS + " FROM wallet WHERE tenant_id = #{tenantId}")
+    Wallet findByTenantId(@Param("tenantId") UUID tenantId);
 
-    @Select("INSERT INTO wallet (user_id, available, frozen) VALUES (#{userId}, 0, 0) "
-            + "ON CONFLICT (user_id) DO NOTHING RETURNING " + COLS)
-    Wallet insertIfAbsent(@Param("userId") UUID userId);
+    /** 钱包属于租户：给新租户开一只 0 余额钱包，返回新钱包 id。 */
+    @Select("INSERT INTO wallet (tenant_id, available, frozen) VALUES (#{tenantId}, 0, 0) RETURNING id")
+    UUID openForTenant(@Param("tenantId") UUID tenantId);
 
     @Update("UPDATE wallet SET available = available - #{amount}, frozen = frozen + #{amount}, updated_at = now() "
             + "WHERE id = #{walletId} AND available >= #{amount}")

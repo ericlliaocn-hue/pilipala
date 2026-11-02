@@ -4,6 +4,11 @@ import java.util.Optional;
 import java.util.UUID;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import art.pilipala.api.auth.application.AccessCheck;
+import art.pilipala.api.auth.application.CurrentTenant;
+import art.pilipala.api.auth.domain.User;
+import art.pilipala.api.auth.infra.AuthException;
+import art.pilipala.api.auth.infra.UserRepository;
 import art.pilipala.api.billing.application.JobCostPolicy;
 import art.pilipala.api.billing.application.WalletService;
 import art.pilipala.api.billing.domain.WalletHold;
@@ -24,6 +29,10 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 提交一个托管任务。
  *
+ * <p>冻结前先过三道闸：当前租户（含请求另带的 {@code tenant_id} 必须一致）、用户
+ * {@code status = active}（否则 {@code ACCOUNT_DISABLED}）、租户 {@code active}、
+ * 以及该租户上的 {@code job.submit}（否则 {@code FORBIDDEN}）。任一不过，job 与冻结单都不写。
+ *
  * <p>事务顺序（brief 锁定的「顺序 A」）：冻结钱包 → 写 job(created, hold_id) → 迁到 queued
  * → 绑定冻结单的 job_id → 写 outbox(pending) → 写幂等记录；事务提交后由 dispatcher 异步投递。
  *
@@ -36,6 +45,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class SubmitJob {
 
+    private static final String PERMISSION_JOB_SUBMIT = "job.submit";
     private static final int MAX_IDEMPOTENCY_KEY_LENGTH = 128;
     private static final int MAX_CAPABILITY_LENGTH = 64;
     private static final int MAX_MODEL_LENGTH = 128;
@@ -49,9 +59,13 @@ public class SubmitJob {
     private final WalletService wallets;
     private final JobCostPolicy costPolicy;
     private final ModelCatalog catalog;
+    private final CurrentTenant currentTenant;
+    private final AccessCheck access;
+    private final UserRepository users;
 
     public SubmitJob(JobRepository jobs, OutboxRepository outbox, IdempotencyRepository idempotency, JobRequestHasher hasher,
-            WalletService wallets, JobCostPolicy costPolicy, ModelCatalog catalog) {
+            WalletService wallets, JobCostPolicy costPolicy, ModelCatalog catalog,
+            CurrentTenant currentTenant, AccessCheck access, UserRepository users) {
         this.jobs = jobs;
         this.outbox = outbox;
         this.idempotency = idempotency;
@@ -59,10 +73,15 @@ public class SubmitJob {
         this.wallets = wallets;
         this.costPolicy = costPolicy;
         this.catalog = catalog;
+        this.currentTenant = currentTenant;
+        this.access = access;
+        this.users = users;
     }
 
     @Transactional
-    public SubmitJobView submit(UUID userId, String idempotencyKey, String capability, String model, JsonNode params, String clientJobId) {
+    public SubmitJobView submit(UUID userId, String requestedTenantId, String idempotencyKey, String capability,
+            String model, JsonNode params, String clientJobId) {
+        UUID tenantId = submitTenant(userId, requestedTenantId);
         String key = requireText(idempotencyKey, MAX_IDEMPOTENCY_KEY_LENGTH);
         String capabilityText = requireText(capability, MAX_CAPABILITY_LENGTH);
         String modelText = requireText(model, MAX_MODEL_LENGTH);
@@ -106,9 +125,9 @@ public class SubmitJob {
             cost = costPolicy.costOf(capabilityText, modelText);
         }
         // 冻结：余额不足直接抛 WALLET_INSUFFICIENT，此时还没写 job。
-        WalletHold hold = wallets.freeze(userId, cost);
+        WalletHold hold = wallets.freeze(tenantId, userId, cost);
 
-        Optional<Job> created = jobs.insertIfAbsent(userId, capabilityText, modelText, productId, targetId,
+        Optional<Job> created = jobs.insertIfAbsent(tenantId, userId, capabilityText, modelText, productId, targetId,
                 gatewayGroup, gatewayModel, gatewayTimeoutSeconds, quotedPrice, pricingVersion, params.toString(),
                 key, hold.id());
         if (created.isEmpty()) {
@@ -129,6 +148,24 @@ public class SubmitJob {
         outbox.insertPending(eventId, "job", job.id(), JobMessagePayload.of(job.id(), eventId));
         idempotency.insert(userId, key, job.id(), hash);
         return new SubmitJobView(job.id().toString(), JobStatus.QUEUED.value(), hold.id().toString());
+    }
+
+    /**
+     * 当前租户，并要求该租户 active、用户 active、该租户上持有 {@code job.submit}。
+     *
+     * <p>请求另带 {@code tenant_id} 且不等于当前租户时，在这里就 {@code FORBIDDEN}，
+     * 后面一行都不会写。
+     */
+    private UUID submitTenant(UUID userId, String requestedTenantId) {
+        UUID tenantId = currentTenant.requireActive(userId, requestedTenantId);
+        User user = users.findById(userId).orElseThrow(AuthException::unauthorized);
+        if (!User.STATUS_ACTIVE.equals(user.status())) {
+            throw AuthException.accountDisabled();
+        }
+        if (!access.hasTenant(userId, tenantId, PERMISSION_JOB_SUBMIT)) {
+            throw AuthException.forbidden();
+        }
+        return tenantId;
     }
 
     private SubmitJobView replay(IdempotencyRecord record, String hash) {

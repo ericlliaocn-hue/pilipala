@@ -17,17 +17,17 @@ public class MybatisUserAssetRepository implements UserAssetRepository {
     }
 
     @Override
-    public void insertGeneratedIfAbsent(UUID userId, UUID jobId, String objectKey, String mimeType) {
-        mapper.insertGeneratedIfAbsent(userId, jobId, objectKey, mimeType);
+    public void insertGeneratedIfAbsent(UUID tenantId, UUID userId, UUID jobId, String objectKey, String mimeType) {
+        mapper.insertGeneratedIfAbsent(tenantId, userId, jobId, objectKey, mimeType);
     }
 
     @Override
-    public List<UserAsset> findByUserAssets(UUID userId, int limit) {
-        return mapper.findByUserAssets(userId, limit);
+    public List<UserAsset> findByTenantAssets(UUID tenantId, int limit) {
+        return mapper.findByTenantAssets(tenantId, limit);
     }
 
     @Override
-    public boolean deleteAsset(UUID assetId, UUID userId) {
-        return mapper.deleteAsset(assetId, userId) > 0;
+    public boolean deleteAsset(UUID assetId, UUID tenantId) {
+        return mapper.deleteAsset(assetId, tenantId) > 0;
     }
 }

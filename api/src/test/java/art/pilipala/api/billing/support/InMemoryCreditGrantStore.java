@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 
+import art.pilipala.api.auth.support.TestPersonalTenants;
 import art.pilipala.api.billing.domain.CreditGrant;
 import art.pilipala.api.billing.infra.CreditGrantRepository;
 
@@ -16,11 +17,12 @@ public class InMemoryCreditGrantStore implements CreditGrantRepository {
     private final List<CreditGrant> grants = new ArrayList<>();
 
     @Override
-    public CreditGrant insert(CreditGrant draft) {
+    public CreditGrant insert(UUID tenantId, CreditGrant draft) {
         CreditGrant saved = new CreditGrant(
                 ids.getAndIncrement(),
                 draft.userId(),
                 draft.walletId(),
+                tenantId,
                 draft.sourceType(),
                 draft.sourceId(),
                 draft.grantType(),
@@ -31,6 +33,11 @@ public class InMemoryCreditGrantStore implements CreditGrantRepository {
                 Instant.now());
         grants.add(saved);
         return saved;
+    }
+
+    /** 测试便捷：直接写一条批次，租户取自草稿。 */
+    public CreditGrant insert(CreditGrant draft) {
+        return insert(draft.tenantId() == null ? TestPersonalTenants.TENANT : draft.tenantId(), draft);
     }
 
     @Override
@@ -51,6 +58,7 @@ public class InMemoryCreditGrantStore implements CreditGrantRepository {
                         g.id(),
                         g.userId(),
                         g.walletId(),
+                        g.tenantId(),
                         g.sourceType(),
                         g.sourceId(),
                         g.grantType(),
@@ -77,15 +85,17 @@ public class InMemoryCreditGrantStore implements CreditGrantRepository {
                 .toList();
     }
 
+    /** C 端钱包快照按该租户钱包的 wallet_id 看批次。 */
     @Override
-    public List<CreditGrant> listActiveSummary(UUID userId, int limit) {
-        return listByUser(userId, limit);
+    public List<CreditGrant> listActiveSummary(UUID walletId, int limit) {
+        return grants.stream().filter(g -> g.walletId().equals(walletId)).limit(limit).toList();
     }
 
     @Override
-    public List<CreditGrant> listSubscriptionRemainingForUpdate(UUID userId) {
+    public List<CreditGrant> listSubscriptionRemainingForUpdate(UUID tenantId) {
         return grants.stream()
-                .filter(g -> g.userId().equals(userId) && "subscription".equals(g.grantType()) && g.creditsRemaining() > 0)
+                .filter(g -> tenantId.equals(g.tenantId()) && "subscription".equals(g.grantType())
+                        && g.creditsRemaining() > 0)
                 .toList();
     }
 

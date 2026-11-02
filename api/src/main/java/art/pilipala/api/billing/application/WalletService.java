@@ -1,6 +1,5 @@
 package art.pilipala.api.billing.application;
 
-import java.util.Optional;
 import java.util.UUID;
 
 import art.pilipala.api.billing.domain.JobTerminalState;
@@ -29,6 +28,9 @@ import org.springframework.transaction.annotation.Transactional;
  *       重放 confirm / release 完全幂等。</li>
  * </ul>
  *
+ * <p>钱包、冻结单与流水都归属租户：调用方给当前租户的 {@code tenantId}，
+ * {@code userId} 只表示操作者（当前登录用户）。本服务不解析当前租户，也不补建租户。
+ *
  * <p>账本 100% 留在 api 进程：worker 不碰这些表（ADR 0004）。
  */
 @Service
@@ -52,19 +54,21 @@ public class WalletService {
         this.grantService = grantService;
     }
 
-    /** 确保用户有钱包行；没有就惰性建一个 0 余额的。 */
+    /** 确保该租户有钱包行；没有就补一只 0 余额的（不新建租户）。 */
     @Transactional
-    public Wallet ensureWallet(UUID userId) {
-        Optional<Wallet> existing = wallets.findByUserId(userId);
-        if (existing.isPresent()) {
-            return existing.get();
+    public Wallet ensureWallet(UUID tenantId) {
+        Wallet existing = wallets.findByTenantId(tenantId).orElse(null);
+        if (existing != null) {
+            return existing;
         }
-        Wallet created = wallets.insertIfAbsent(userId).orElse(null);
-        if (created != null) {
-            return created;
-        }
-        // 并发下另一个事务先建好了。
-        return wallets.findByUserId(userId).orElseThrow(() -> new IllegalStateException("钱包初始化失败"));
+        return wallets.findWallet(wallets.openForTenant(tenantId))
+                .orElseThrow(() -> new IllegalStateException("钱包初始化失败"));
+    }
+
+    /** 给新建的租户开一只 0 余额钱包，返回新钱包 id。 */
+    @Transactional
+    public UUID openTenantWallet(UUID tenantId) {
+        return wallets.openForTenant(tenantId);
     }
 
     /**
@@ -73,9 +77,9 @@ public class WalletService {
      * <p>严禁「只改 wallet.available 不写流水」——那是流水与余额对不上的根源。
      */
     @Transactional
-    public Wallet credit(UUID userId, long amount) {
-        credit(userId, amount, null);
-        return ensureWallet(userId);
+    public Wallet credit(UUID tenantId, UUID userId, long amount) {
+        credit(tenantId, userId, amount, null);
+        return ensureWallet(tenantId);
     }
 
     /**
@@ -84,28 +88,42 @@ public class WalletService {
      * @param rechargeOrderId 渠道充值订单 id（可选）
      */
     @Transactional
-    public WalletLedgerEntry credit(UUID userId, long amount, UUID rechargeOrderId) {
+    public WalletLedgerEntry credit(UUID tenantId, UUID userId, long amount, UUID rechargeOrderId) {
         if (amount <= 0) {
             throw JobException.validation();
         }
-        Wallet wallet = ensureWallet(userId);
-        wallets.addAvailable(wallet.id(), amount);
-        return ledger.insert(wallet.id(), userId, WalletLedgerType.TOPUP, amount, null, null, rechargeOrderId);
+        Wallet wallet = ensureWallet(tenantId);
+        return creditWallet(wallet.id(), tenantId, userId, amount, rechargeOrderId);
+    }
+
+    /**
+     * 按 {@code wallet.id} 加可用余额并记一条 {@code topup} 流水。
+     *
+     * <p>注册时钱包刚建好、调用方手里只有钱包 id，走这一条。
+     */
+    @Transactional
+    public WalletLedgerEntry creditWallet(
+            UUID walletId, UUID tenantId, UUID userId, long amount, UUID rechargeOrderId) {
+        if (amount <= 0) {
+            throw JobException.validation();
+        }
+        wallets.addAvailable(walletId, amount);
+        return ledger.insert(tenantId, walletId, userId, WalletLedgerType.TOPUP, amount, null, null, rechargeOrderId);
     }
 
     /**
      * 充值退款扣回：可用减 {@code amount}，写 {@code refund} 流水。
      */
     @Transactional
-    public WalletLedgerEntry refundDebit(UUID userId, long amount, UUID rechargeOrderId) {
+    public WalletLedgerEntry refundDebit(UUID tenantId, UUID userId, long amount, UUID rechargeOrderId) {
         if (amount <= 0) {
             throw JobException.validation();
         }
-        Wallet wallet = ensureWallet(userId);
+        Wallet wallet = ensureWallet(tenantId);
         if (!wallets.deductAvailable(wallet.id(), amount)) {
             throw JobException.rechargeNotRefundable();
         }
-        return ledger.insert(wallet.id(), userId, WalletLedgerType.REFUND, amount, null, null, rechargeOrderId);
+        return ledger.insert(tenantId, wallet.id(), userId, WalletLedgerType.REFUND, amount, null, null, rechargeOrderId);
     }
 
     /**
@@ -115,16 +133,16 @@ public class WalletService {
      * 调用方的事务会整体回滚，所以不会留下「冻了一半」的账。
      */
     @Transactional
-    public WalletHold freeze(UUID userId, long amount) {
+    public WalletHold freeze(UUID tenantId, UUID userId, long amount) {
         if (amount <= 0) {
             throw JobException.validation();
         }
-        Wallet wallet = ensureWallet(userId);
+        Wallet wallet = ensureWallet(tenantId);
         if (!wallets.reserve(wallet.id(), amount)) {
             throw JobException.walletInsufficient();
         }
-        WalletHold hold = holds.insert(userId, null, amount);
-        ledger.insert(wallet.id(), userId, WalletLedgerType.FREEZE, amount, hold.id(), null, null);
+        WalletHold hold = holds.insert(tenantId, userId, null, amount);
+        ledger.insert(tenantId, wallet.id(), userId, WalletLedgerType.FREEZE, amount, hold.id(), null, null);
         return hold;
     }
 
@@ -167,8 +185,11 @@ public class WalletService {
         }
     }
 
+    /**
+     * 终结冻结单：钱包按冻结单上的 {@code tenant_id} 找，不看操作者。
+     */
     private boolean finalize(UUID holdId, WalletHoldStatus target) {
-        Optional<WalletHold> updated = holds.finalizeIfFrozen(holdId, target);
+        var updated = holds.finalizeIfFrozen(holdId, target);
         if (updated.isEmpty()) {
             WalletHold current = holds.findHold(holdId).orElseThrow(JobException::notFound);
             if (current.status() == target) {
@@ -179,7 +200,7 @@ public class WalletService {
             throw JobException.validation();
         }
         WalletHold hold = updated.get();
-        Wallet wallet = wallets.findByUserId(hold.userId())
+        Wallet wallet = wallets.findByTenantId(hold.tenantId())
                 .orElseThrow(() -> new IllegalStateException("冻结单对应的钱包不存在"));
         if (target == WalletHoldStatus.CONFIRMED) {
             wallets.consumeFrozen(wallet.id(), hold.amount());
@@ -187,7 +208,7 @@ public class WalletService {
         } else {
             wallets.releaseFrozen(wallet.id(), hold.amount());
         }
-        ledger.insert(wallet.id(), hold.userId(),
+        ledger.insert(hold.tenantId(), wallet.id(), hold.userId(),
                 target == WalletHoldStatus.CONFIRMED ? WalletLedgerType.CONFIRM : WalletLedgerType.RELEASE,
                 hold.amount(), hold.id(), hold.jobId(), null);
         return true;

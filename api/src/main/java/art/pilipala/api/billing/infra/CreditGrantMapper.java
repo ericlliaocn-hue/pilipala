@@ -15,15 +15,16 @@ import art.pilipala.api.billing.domain.CreditGrant;
 @Mapper
 public interface CreditGrantMapper {
 
-    String COLS = "id, user_id, wallet_id, source_type, source_id, grant_type, credits_total, credits_remaining, "
-            + "expires_at, product_id, created_at";
+    String COLS = "id, user_id, wallet_id, tenant_id, source_type, source_id, grant_type, credits_total, "
+            + "credits_remaining, expires_at, product_id, created_at";
 
-    @Insert("INSERT INTO credit_grant (user_id, wallet_id, source_type, source_id, grant_type, credits_total, "
-            + "credits_remaining, expires_at, product_id) VALUES (#{userId}, #{walletId}, #{sourceType}, "
-            + "#{sourceId}, #{grantType}, #{creditsTotal}, #{creditsRemaining}, #{expiresAt}, #{productId}) "
-            + "RETURNING " + COLS)
+    @Insert("INSERT INTO credit_grant (user_id, wallet_id, tenant_id, source_type, source_id, grant_type, "
+            + "credits_total, credits_remaining, expires_at, product_id) VALUES (#{userId}, #{walletId}, #{tenantId}, "
+            + "#{sourceType}, #{sourceId}, #{grantType}, #{creditsTotal}, #{creditsRemaining}, #{expiresAt}, "
+            + "#{productId}) RETURNING " + COLS)
     CreditGrant insert(@Param("userId") UUID userId,
             @Param("walletId") UUID walletId,
+            @Param("tenantId") UUID tenantId,
             @Param("sourceType") String sourceType,
             @Param("sourceId") String sourceId,
             @Param("grantType") String grantType,
@@ -48,11 +49,11 @@ public interface CreditGrantMapper {
             + "AND expires_at < #{before} ORDER BY expires_at LIMIT #{limit} FOR UPDATE SKIP LOCKED")
     List<CreditGrant> findExpiredForUpdate(@Param("before") Instant before, @Param("limit") int limit);
 
-    @Select("SELECT " + COLS + " FROM credit_grant WHERE user_id = #{userId} AND credits_remaining > 0 "
+    @Select("SELECT " + COLS + " FROM credit_grant WHERE wallet_id = #{walletId} AND credits_remaining > 0 "
             + "AND (expires_at IS NULL OR expires_at > now()) ORDER BY expires_at NULLS LAST, created_at LIMIT #{limit}")
-    List<CreditGrant> listActiveSummary(@Param("userId") UUID userId, @Param("limit") int limit);
+    List<CreditGrant> listActiveSummary(@Param("walletId") UUID walletId, @Param("limit") int limit);
 
-    @Select("SELECT " + COLS + " FROM credit_grant WHERE user_id = #{userId} AND grant_type = 'subscription' "
+    @Select("SELECT " + COLS + " FROM credit_grant WHERE tenant_id = #{tenantId} AND grant_type = 'subscription' "
             + "AND credits_remaining > 0 FOR UPDATE")
-    List<CreditGrant> listSubscriptionRemainingForUpdate(@Param("userId") UUID userId);
+    List<CreditGrant> listSubscriptionRemainingForUpdate(@Param("tenantId") UUID tenantId);
 }

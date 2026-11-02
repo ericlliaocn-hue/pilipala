@@ -20,8 +20,8 @@ public class MybatisWalletHoldRepository implements WalletHoldRepository {
     }
 
     @Override
-    public WalletHold insert(UUID userId, UUID jobId, long amount) {
-        return mapper.insert(userId, jobId, amount);
+    public WalletHold insert(UUID tenantId, UUID userId, UUID jobId, long amount) {
+        return mapper.insert(tenantId, userId, jobId, amount);
     }
 
     @Override
@@ -40,10 +40,10 @@ public class MybatisWalletHoldRepository implements WalletHoldRepository {
     }
 
     @Override
-    public List<PendingSettlement> findPendingSettlement(UUID userId, int limit) {
-        List<PendingSettlement> rows = userId == null
+    public List<PendingSettlement> findPendingSettlement(UUID tenantId, int limit) {
+        List<PendingSettlement> rows = tenantId == null
                 ? mapper.findPendingSettlementAll(limit)
-                : mapper.findPendingSettlementByUser(userId, limit);
+                : mapper.findPendingSettlementByTenant(tenantId, limit);
         return rows.stream().filter(pending -> pending.jobState() != null).toList();
     }
 }

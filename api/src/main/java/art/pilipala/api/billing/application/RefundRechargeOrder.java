@@ -30,7 +30,7 @@ public class RefundRechargeOrder {
         if (order.status() != RechargeOrderStatus.PAID) {
             throw JobException.rechargeNotRefundable();
         }
-        Wallet wallet = wallets.ensureWallet(order.userId());
+        Wallet wallet = wallets.ensureWallet(order.tenantId());
         if (wallet.available() < order.credits()) {
             throw JobException.rechargeNotRefundable();
         }
@@ -43,7 +43,7 @@ public class RefundRechargeOrder {
                 throw provider;
             }
         }
-        wallets.refundDebit(order.userId(), order.credits(), order.id());
+        wallets.refundDebit(order.tenantId(), order.userId(), order.credits(), order.id());
         if (!orders.markRefunded(order.id())) {
             throw JobException.rechargeNotRefundable();
         }

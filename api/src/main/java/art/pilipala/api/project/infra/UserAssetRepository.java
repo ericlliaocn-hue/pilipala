@@ -14,15 +14,15 @@ public interface UserAssetRepository {
     /**
      * 把一条生成结果幂等写进素材表：同一 (job_id, object_key) 只会有一行。
      */
-    void insertGeneratedIfAbsent(UUID userId, UUID jobId, String objectKey, String mimeType);
+    void insertGeneratedIfAbsent(UUID tenantId, UUID userId, UUID jobId, String objectKey, String mimeType);
 
-    /** 本人的素材列表，按创建时间倒序。 */
-    List<UserAsset> findByUserAssets(UUID userId, int limit);
+    /** 当前租户的素材列表，按创建时间倒序。 */
+    List<UserAsset> findByTenantAssets(UUID tenantId, int limit);
 
     /**
-     * 删除本人的素材。
+     * 删除当前租户的素材。
      *
      * @return 真的删掉了才为 true
      */
-    boolean deleteAsset(UUID assetId, UUID userId);
+    boolean deleteAsset(UUID assetId, UUID tenantId);
 }

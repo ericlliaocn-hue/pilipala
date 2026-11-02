@@ -50,7 +50,13 @@ public class CreateRechargeOrder {
 
     @Transactional
     public RechargeOrderView create(
-            UUID userId, String packageId, String productCode, Long customCredits, String device, HttpServletRequest request) {
+            UUID userId,
+            UUID tenantId,
+            String packageId,
+            String productCode,
+            Long customCredits,
+            String device,
+            HttpServletRequest request) {
         config.requireCreateOrderConfig();
         ResolvedProduct resolved = resolveProduct(packageId, productCode, customCredits);
         boolean mobile = "mobile".equalsIgnoreCase(device);
@@ -59,6 +65,7 @@ public class CreateRechargeOrder {
         String packageKey = resolved.productCode() != null ? resolved.productCode() : resolved.legacyPackageId();
         RechargeOrder created = orders.insertCreated(new RechargeOrder(
                 null,
+                tenantId,
                 userId,
                 outTradeNo,
                 "zpay",

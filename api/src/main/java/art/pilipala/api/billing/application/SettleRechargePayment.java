@@ -43,7 +43,7 @@ public class SettleRechargePayment {
         if (order.orderKind() == RechargeOrderKind.MEMBERSHIP) {
             return membershipActivation.activateFromPaidOrder(order);
         }
-        Wallet wallet = wallets.ensureWallet(order.userId());
+        Wallet wallet = wallets.ensureWallet(order.tenantId());
         Optional<CreditProduct> product = order.productId() != null
                 ? products.findById(order.productId())
                 : Optional.empty();
@@ -63,10 +63,11 @@ public class SettleRechargePayment {
         long topUpAmount;
         if (resolved != null || order.productCode() != null) {
             topUpAmount = grantService.grantForRecharge(
-                    order.userId(), wallet, order.id(), resolved, baseCredits, fixedBonus, firstBonus);
+                    order.tenantId(), order.userId(), wallet, order.id(), resolved, baseCredits, fixedBonus, firstBonus);
         } else {
-            topUpAmount = grantService.grantLegacyRecharge(order.userId(), wallet, order.id(), baseCredits);
+            topUpAmount = grantService.grantLegacyRecharge(
+                    order.tenantId(), order.userId(), wallet, order.id(), baseCredits);
         }
-        return wallets.credit(order.userId(), topUpAmount, order.id());
+        return wallets.credit(order.tenantId(), order.userId(), topUpAmount, order.id());
     }
 }

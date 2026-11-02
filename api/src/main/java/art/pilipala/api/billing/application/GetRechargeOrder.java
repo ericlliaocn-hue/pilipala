@@ -30,9 +30,9 @@ public class GetRechargeOrder {
         this.reconcile = reconcile;
     }
 
-    public RechargeOrderView get(UUID userId, String outTradeNo) {
+    public RechargeOrderView get(UUID tenantId, String outTradeNo) {
         RechargeOrder order = orders.findByOutTradeNo(outTradeNo).orElseThrow(JobException::rechargeOrderNotFound);
-        if (!order.userId().equals(userId)) {
+        if (!order.tenantId().equals(tenantId)) {
             throw JobException.rechargeOrderNotFound();
         }
         if (order.status() == RechargeOrderStatus.PENDING_PAY) {

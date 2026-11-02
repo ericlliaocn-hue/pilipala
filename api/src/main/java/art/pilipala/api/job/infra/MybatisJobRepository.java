@@ -22,10 +22,10 @@ public class MybatisJobRepository implements JobRepository {
 
     @Override
     public Optional<Job> insertIfAbsent(
-            UUID userId, String capability, String model, UUID productId, UUID targetId, String gatewayGroup,
-            String gatewayModel, Integer gatewayTimeoutSeconds, Long quotedPrice, String pricingVersion,
-            String paramsJson, String idempotencyKey, UUID holdId) {
-        return Optional.ofNullable(mapper.insertIfAbsent(userId, capability, model, productId, targetId,
+            UUID tenantId, UUID userId, String capability, String model, UUID productId, UUID targetId,
+            String gatewayGroup, String gatewayModel, Integer gatewayTimeoutSeconds, Long quotedPrice,
+            String pricingVersion, String paramsJson, String idempotencyKey, UUID holdId) {
+        return Optional.ofNullable(mapper.insertIfAbsent(tenantId, userId, capability, model, productId, targetId,
                 gatewayGroup, gatewayModel, gatewayTimeoutSeconds, quotedPrice, pricingVersion, paramsJson,
                 idempotencyKey, holdId));
     }
@@ -36,8 +36,8 @@ public class MybatisJobRepository implements JobRepository {
     }
 
     @Override
-    public Optional<Job> findByIdAndUser(UUID jobId, UUID userId) {
-        return Optional.ofNullable(mapper.findByIdAndUser(jobId, userId));
+    public Optional<Job> findByIdAndTenant(UUID jobId, UUID tenantId) {
+        return Optional.ofNullable(mapper.findByIdAndTenant(jobId, tenantId));
     }
 
     @Override
@@ -61,8 +61,8 @@ public class MybatisJobRepository implements JobRepository {
     }
 
     @Override
-    public List<Job> findByUserOrderByCreatedAtDesc(UUID userId, int limit) {
-        return mapper.findByUserOrderByCreatedAtDesc(userId, limit);
+    public List<Job> findByTenantOrderByCreatedAtDesc(UUID tenantId, int limit) {
+        return mapper.findByTenantOrderByCreatedAtDesc(tenantId, limit);
     }
 
     @Override

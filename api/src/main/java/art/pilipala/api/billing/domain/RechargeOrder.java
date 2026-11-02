@@ -5,9 +5,12 @@ import java.util.UUID;
 
 /**
  * 充值订单（z-pay 等渠道）。
+ *
+ * <p>订单归属租户（{@code tenantId}），{@code userId} 只表示下单的操作者。
  */
 public record RechargeOrder(
         UUID id,
+        UUID tenantId,
         UUID userId,
         String outTradeNo,
         String provider,

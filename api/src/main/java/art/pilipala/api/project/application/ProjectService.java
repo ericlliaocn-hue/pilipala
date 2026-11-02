@@ -15,8 +15,8 @@ import org.springframework.stereotype.Service;
 /**
  * 云端画布项目用例：create / list / get / update / delete。
  *
- * <p>只按会话里的 user_id 读写（严禁信任请求体里的 user id）。
- * 项目不存在与「属于别人」返回同一个码，不泄露存在性。
+ * <p>只按当前租户读写（严禁信任请求体里的 user id），插入时保留操作者 {@code user_id}。
+ * 项目不存在与「属于别的租户」返回同一个码，不泄露存在性。
  */
 @Service
 public class ProjectService {
@@ -36,39 +36,39 @@ public class ProjectService {
         this.mapper = mapper;
     }
 
-    public ProjectDetailView create(UUID userId, String name, JsonNode canvasData) {
-        CanvasProject project = projects.insert(userId, requireName(name), requireCanvasData(canvasData));
+    public ProjectDetailView create(UUID userId, UUID tenantId, String name, JsonNode canvasData) {
+        CanvasProject project = projects.insert(tenantId, userId, requireName(name), requireCanvasData(canvasData));
         return toDetail(project);
     }
 
-    public List<ProjectSummaryView> list(UUID userId) {
-        return projects.findByUser(userId, MAX_LIST_SIZE).stream().map(this::toSummary).toList();
+    public List<ProjectSummaryView> list(UUID tenantId) {
+        return projects.findByTenant(tenantId, MAX_LIST_SIZE).stream().map(this::toSummary).toList();
     }
 
-    public ProjectDetailView get(UUID userId, UUID projectId) {
-        return toDetail(findOwned(userId, projectId));
+    public ProjectDetailView get(UUID tenantId, UUID projectId) {
+        return toDetail(findOwned(tenantId, projectId));
     }
 
-    public ProjectDetailView update(UUID userId, UUID projectId, String name, JsonNode canvasData) {
+    public ProjectDetailView update(UUID tenantId, UUID projectId, String name, JsonNode canvasData) {
         if (name == null && canvasData == null) {
             throw ProjectException.validation();
         }
         String cleanName = name == null ? null : requireName(name);
         String json = canvasData == null ? null : requireCanvasData(canvasData);
-        CanvasProject project = projects.update(projectId, userId, cleanName, json)
+        CanvasProject project = projects.update(projectId, tenantId, cleanName, json)
                 .orElseThrow(ProjectException::projectNotFound);
         return toDetail(project);
     }
 
-    public DeleteProjectView delete(UUID userId, UUID projectId) {
-        if (!projects.delete(projectId, userId)) {
+    public DeleteProjectView delete(UUID tenantId, UUID projectId) {
+        if (!projects.delete(projectId, tenantId)) {
             throw ProjectException.projectNotFound();
         }
         return new DeleteProjectView(projectId.toString(), true);
     }
 
-    private CanvasProject findOwned(UUID userId, UUID projectId) {
-        return projects.findByIdAndUser(projectId, userId).orElseThrow(ProjectException::projectNotFound);
+    private CanvasProject findOwned(UUID tenantId, UUID projectId) {
+        return projects.findByIdAndTenant(projectId, tenantId).orElseThrow(ProjectException::projectNotFound);
     }
 
     private ProjectSummaryView toSummary(CanvasProject project) {

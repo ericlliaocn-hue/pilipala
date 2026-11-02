@@ -17,7 +17,7 @@ import art.pilipala.api.billing.domain.WalletHoldStatus;
 public interface WalletHoldRepository {
 
     /** 新建一张 status=frozen 的冻结单；jobId 未绑定时传 null。 */
-    WalletHold insert(UUID userId, UUID jobId, long amount);
+    WalletHold insert(UUID tenantId, UUID userId, UUID jobId, long amount);
 
     Optional<WalletHold> findHold(UUID holdId);
 
@@ -34,8 +34,8 @@ public interface WalletHoldRepository {
     /**
      * 冻结单还冻着、但关联 job 已进终态的候选。
      *
-     * @param userId 只看某个用户时传 id，否则传 null
-     * @param limit  单批上限
+     * @param tenantId 只看某个租户时传 id，否则传 null
+     * @param limit    单批上限
      */
-    List<PendingSettlement> findPendingSettlement(UUID userId, int limit);
+    List<PendingSettlement> findPendingSettlement(UUID tenantId, int limit);
 }

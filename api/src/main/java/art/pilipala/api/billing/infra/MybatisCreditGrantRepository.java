@@ -18,10 +18,11 @@ public class MybatisCreditGrantRepository implements CreditGrantRepository {
     }
 
     @Override
-    public CreditGrant insert(CreditGrant draft) {
+    public CreditGrant insert(UUID tenantId, CreditGrant draft) {
         return mapper.insert(
                 draft.userId(),
                 draft.walletId(),
+                tenantId,
                 draft.sourceType(),
                 draft.sourceId(),
                 draft.grantType(),
@@ -52,12 +53,12 @@ public class MybatisCreditGrantRepository implements CreditGrantRepository {
     }
 
     @Override
-    public List<CreditGrant> listActiveSummary(UUID userId, int limit) {
-        return mapper.listActiveSummary(userId, limit);
+    public List<CreditGrant> listActiveSummary(UUID walletId, int limit) {
+        return mapper.listActiveSummary(walletId, limit);
     }
 
     @Override
-    public List<CreditGrant> listSubscriptionRemainingForUpdate(UUID userId) {
-        return mapper.listSubscriptionRemainingForUpdate(userId);
+    public List<CreditGrant> listSubscriptionRemainingForUpdate(UUID tenantId) {
+        return mapper.listSubscriptionRemainingForUpdate(tenantId);
     }
 }

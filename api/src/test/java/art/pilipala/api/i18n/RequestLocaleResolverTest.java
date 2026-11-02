@@ -82,6 +82,6 @@ class RequestLocaleResolverTest {
 
     private void givenUser(String locale) {
         when(users.findById(USER)).thenReturn(Optional.of(
-                new User(USER, "bob", null, null, "hash", locale, Instant.now(), Instant.now())));
+                new User(USER, "bob", null, null, "hash", locale, "active", Instant.now(), Instant.now())));
     }
 }

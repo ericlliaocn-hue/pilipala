@@ -9,6 +9,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
 
+import art.pilipala.api.auth.support.TestPersonalTenants;
 import art.pilipala.api.billing.domain.CreditGrant;
 import art.pilipala.api.billing.domain.Wallet;
 import art.pilipala.api.billing.domain.WalletLedgerType;
@@ -25,12 +26,14 @@ class MembershipBillingTest {
         CreditGrantService grants = new CreditGrantService(grantStore, store, store);
         WalletService wallets = new WalletService(store, store, store, grants);
         UUID user = UUID.randomUUID();
-        Wallet wallet = wallets.ensureWallet(user);
+        UUID tenant = TestPersonalTenants.TENANT;
+        Wallet wallet = wallets.ensureWallet(tenant);
         store.addAvailable(wallet.id(), 2000);
         grantStore.insert(new CreditGrant(
                 0,
                 user,
                 wallet.id(),
+                tenant,
                 "subscription",
                 "1",
                 "subscription",
@@ -39,9 +42,9 @@ class MembershipBillingTest {
                 Instant.now().plus(10, ChronoUnit.DAYS),
                 null,
                 Instant.now()));
-        long cleared = grants.clearSubscriptionGrantRemaining(user, wallet.id());
+        long cleared = grants.clearSubscriptionGrantRemaining(tenant, wallet.id());
         assertThat(cleared).isEqualTo(1500);
-        assertThat(store.walletOf(user).available()).isEqualTo(500);
+        assertThat(store.walletOf(tenant).available()).isEqualTo(500);
         assertThat(grantStore.all().get(0).creditsRemaining()).isZero();
         assertThat(store.findLedgerByUserId(user).stream().anyMatch(e -> e.type() == WalletLedgerType.EXPIRE)).isTrue();
     }

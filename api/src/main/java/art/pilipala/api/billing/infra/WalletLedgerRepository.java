@@ -10,11 +10,13 @@ import art.pilipala.api.billing.domain.WalletLedgerType;
  * 账本流水的存取契约。
  *
  * <p>每次余额或冻结额变动都写一条流水；流水只追加，不改不删。
+ * 流水归属租户（{@code tenant_id} 非空），{@code userId} 只表示操作者。
  */
 public interface WalletLedgerRepository {
 
     WalletLedgerEntry insert(
-            UUID walletId, UUID userId, WalletLedgerType type, long amount, UUID holdId, UUID jobId, UUID rechargeOrderId);
+            UUID tenantId, UUID walletId, UUID userId, WalletLedgerType type, long amount, UUID holdId, UUID jobId,
+            UUID rechargeOrderId);
 
     /** 回填流水关联的 job；已回填时不覆盖。 */
     boolean bindJobId(UUID holdId, UUID jobId);

@@ -29,8 +29,13 @@ public class AdminJobViewAssembler {
         this.providerTasks = providerTasks;
     }
 
-    /** 组装一批任务的视图。 */
-    public List<AdminJobView> assembleAll(List<AdminJob> jobs) {
+    /**
+     * 组装一批任务的视图。
+     *
+     * @param includeProviderRaw 调用者是否还有 {@code job.provider_raw}；没有时
+     *                           provider_tasks 照常返回，但 raw_status / raw_body 为 null
+     */
+    public List<AdminJobView> assembleAll(List<AdminJob> jobs, boolean includeProviderRaw) {
         if (jobs.isEmpty()) {
             return List.of();
         }
@@ -42,11 +47,13 @@ public class AdminJobViewAssembler {
         return jobs.stream()
                 .map(job -> assemble(job,
                         stepsByJob.getOrDefault(job.jobId(), List.of()),
-                        tasksByJob.getOrDefault(job.jobId(), List.of())))
+                        tasksByJob.getOrDefault(job.jobId(), List.of()),
+                        includeProviderRaw))
                 .toList();
     }
 
-    private AdminJobView assemble(AdminJob job, List<JobStep> jobSteps, List<ProviderTask> tasks) {
+    private AdminJobView assemble(AdminJob job, List<JobStep> jobSteps, List<ProviderTask> tasks,
+            boolean includeProviderRaw) {
         return new AdminJobView(
                 job.jobId(),
                 job.userId(),
@@ -74,8 +81,8 @@ public class AdminJobViewAssembler {
                         task.id(),
                         task.jobStepId(),
                         task.upstreamRequestId(),
-                        task.rawStatus(),
-                        task.rawBody(),
+                        includeProviderRaw ? task.rawStatus() : null,
+                        includeProviderRaw ? task.rawBody() : null,
                         task.createdAt())).toList());
     }
 }

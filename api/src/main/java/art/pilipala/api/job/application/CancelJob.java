@@ -34,8 +34,8 @@ public class CancelJob {
     }
 
     @Transactional
-    public JobView cancel(UUID userId, UUID jobId, String locale) {
-        Job job = jobs.findByIdAndUser(jobId, userId).orElseThrow(JobException::notFound);
+    public JobView cancel(UUID tenantId, UUID jobId, String locale) {
+        Job job = jobs.findByIdAndTenant(jobId, tenantId).orElseThrow(JobException::notFound);
         if (job.status().isTerminal()) {
             holds.settle(job.holdId(), job.status());
             return JobView.of(job, message(job, locale));

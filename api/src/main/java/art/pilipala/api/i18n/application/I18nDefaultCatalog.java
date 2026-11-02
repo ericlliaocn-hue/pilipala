@@ -80,6 +80,9 @@ public final class I18nDefaultCatalog {
             Map.entry(ErrorCodes.OTP_RATE_LIMITED, Map.of(
                     "zh", "验证码发送过于频繁，请稍后再试。",
                     "en", "Too many verification code requests. Please try again later.")),
+            Map.entry(ErrorCodes.ACCOUNT_DISABLED, Map.of(
+                    "zh", "账号已停用。",
+                    "en", "This account has been disabled.")),
             Map.entry(AuthException.MESSAGE_KEY_IDENTITY_OCCUPIED, Map.of(
                     "zh", "该手机号或邮箱已被其他账号绑定。",
                     "en", "This phone number or email is already bound to another account.")),

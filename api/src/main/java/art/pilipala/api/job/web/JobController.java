@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.UUID;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import art.pilipala.api.auth.application.CurrentTenant;
 import art.pilipala.api.auth.infra.AuthException;
 import art.pilipala.api.auth.infra.AuthSessionService;
 import art.pilipala.api.common.ApiResponse;
@@ -43,6 +44,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class JobController {
 
     private final AuthSessionService sessions;
+    private final CurrentTenant currentTenant;
     private final SubmitJob submitJob;
     private final GetJob getJob;
     private final GetJobResult getJobResult;
@@ -50,9 +52,11 @@ public class JobController {
     private final ListUserJobs listUserJobs;
     private final ObjectProvider<RequestLocaleResolver> localeResolvers;
 
-    public JobController(AuthSessionService sessions, SubmitJob submitJob, GetJob getJob, GetJobResult getJobResult,
+    public JobController(AuthSessionService sessions, CurrentTenant currentTenant, SubmitJob submitJob,
+            GetJob getJob, GetJobResult getJobResult,
             CancelJob cancelJob, ListUserJobs listUserJobs, ObjectProvider<RequestLocaleResolver> localeResolvers) {
         this.sessions = sessions;
+        this.currentTenant = currentTenant;
         this.submitJob = submitJob;
         this.getJob = getJob;
         this.getJobResult = getJobResult;
@@ -65,6 +69,7 @@ public class JobController {
     public ApiResponse<SubmitJobView> submit(@RequestBody SubmitRequest request) {
         return ApiResponse.ok(submitJob.submit(
                 currentUserId(),
+                request.tenantId(),
                 request.idempotencyKey(),
                 request.capability(),
                 request.model(),
@@ -76,21 +81,23 @@ public class JobController {
     public ApiResponse<JobView> get(@PathVariable String jobId,
                                     @RequestHeader(value = "Accept-Language", required = false) String acceptLanguage) {
         UUID userId = currentUserId();
-        return ApiResponse.ok(getJob.get(userId, jobIdOf(jobId), locale(userId, acceptLanguage)));
+        return ApiResponse.ok(getJob.get(currentTenant.require(userId), jobIdOf(jobId), locale(userId, acceptLanguage)));
     }
 
     @GetMapping("/{jobId}/result")
     public ApiResponse<JobResultView> result(@PathVariable String jobId,
                                               @RequestHeader(value = "Accept-Language", required = false) String acceptLanguage) {
         UUID userId = currentUserId();
-        return ApiResponse.ok(getJobResult.result(userId, jobIdOf(jobId), locale(userId, acceptLanguage)));
+        return ApiResponse.ok(getJobResult.result(
+                currentTenant.require(userId), jobIdOf(jobId), locale(userId, acceptLanguage)));
     }
 
     @PostMapping("/{jobId}/cancel")
     public ApiResponse<JobView> cancel(@PathVariable String jobId,
                                         @RequestHeader(value = "Accept-Language", required = false) String acceptLanguage) {
         UUID userId = currentUserId();
-        return ApiResponse.ok(cancelJob.cancel(userId, jobIdOf(jobId), locale(userId, acceptLanguage)));
+        return ApiResponse.ok(cancelJob.cancel(
+                currentTenant.require(userId), jobIdOf(jobId), locale(userId, acceptLanguage)));
     }
 
     /**
@@ -103,7 +110,8 @@ public class JobController {
             @RequestParam(value = "limit", defaultValue = "50") int limit,
             @RequestHeader(value = "Accept-Language", required = false) String acceptLanguage) {
         UUID userId = currentUserId();
-        return ApiResponse.ok(listUserJobs.list(userId, limit, locale(userId, acceptLanguage)));
+        return ApiResponse.ok(listUserJobs.list(
+                currentTenant.require(userId), limit, locale(userId, acceptLanguage)));
     }
 
     private UUID currentUserId() {
@@ -140,7 +148,9 @@ public class JobController {
      * submit 请求体。
      *
      * @param clientJobId 客户端自己的追踪 id；本 WP 收下但不落库
+     * @param tenantId 可选；带了就必须等于会话里的当前租户，否则 FORBIDDEN
      */
-    public record SubmitRequest(String idempotencyKey, String capability, String model, JsonNode params, String clientJobId) {
+    public record SubmitRequest(String tenantId, String idempotencyKey, String capability, String model,
+            JsonNode params, String clientJobId) {
     }
 }

@@ -29,7 +29,7 @@ public class AdminCreditGrantController {
     public ApiResponse<List<AdminCreditGrantView>> list(
             @RequestParam("user_id") String userId,
             @RequestParam(value = "limit", defaultValue = "50") int limit) {
-        guard.requireAdmin();
+        guard.require("ledger.read");
         return ApiResponse.ok(products.listGrants(parseUserId(userId), limit));
     }
 

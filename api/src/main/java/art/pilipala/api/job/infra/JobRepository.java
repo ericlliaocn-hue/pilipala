@@ -18,25 +18,26 @@ public interface JobRepository {
 
     /**
      * 插入一条 status=created 的 job。同一 {@code (user_id, idempotency_key)} 已有行时
-     * 不插入（并发同键的安全网）。
+     * 不插入（并发同键的安全网）。job 归属 {@code tenantId}，{@code userId} 是提交者。
      *
      * @param holdId 钱包冻结单；未冻结时传 null
      * @return 新建的 job；同键已存在时返回空
      */
-    default Optional<Job> insertIfAbsent(UUID userId, String capability, String model, UUID productId, UUID targetId,
-            Long quotedPrice, String pricingVersion, String paramsJson, String idempotencyKey, UUID holdId) {
-        return insertIfAbsent(userId, capability, model, productId, targetId, null, null, null, quotedPrice,
+    default Optional<Job> insertIfAbsent(UUID tenantId, UUID userId, String capability, String model, UUID productId,
+            UUID targetId, Long quotedPrice, String pricingVersion, String paramsJson, String idempotencyKey,
+            UUID holdId) {
+        return insertIfAbsent(tenantId, userId, capability, model, productId, targetId, null, null, null, quotedPrice,
                 pricingVersion, paramsJson, idempotencyKey, holdId);
     }
 
-    Optional<Job> insertIfAbsent(UUID userId, String capability, String model, UUID productId, UUID targetId,
-            String gatewayGroup, String gatewayModel, Integer gatewayTimeoutSeconds, Long quotedPrice,
+    Optional<Job> insertIfAbsent(UUID tenantId, UUID userId, String capability, String model, UUID productId,
+            UUID targetId, String gatewayGroup, String gatewayModel, Integer gatewayTimeoutSeconds, Long quotedPrice,
             String pricingVersion, String paramsJson, String idempotencyKey, UUID holdId);
 
     Optional<Job> findById(UUID jobId);
 
-    /** 只查本人的 job：他人的 job 与不存在的 job 一样返回空。 */
-    Optional<Job> findByIdAndUser(UUID jobId, UUID userId);
+    /** 只查当前租户的 job：他人租户的 job 与不存在的 job 一样返回空。 */
+    Optional<Job> findByIdAndTenant(UUID jobId, UUID tenantId);
 
     /**
      * queued → running 且 attempt+1。只有仍处于 queued 才会成功。
@@ -57,11 +58,11 @@ public interface JobRepository {
     boolean requestCancel(UUID jobId);
 
     /**
-     * 本人的任务列表，按创建时间倒序。
+     * 当前租户的任务列表，按创建时间倒序。
      *
-     * <p>WP10 起用于 C 端生图历史：换浏览器登录也能看到自己的任务。
+     * <p>WP10 起用于 C 端生图历史：换浏览器登录也能看到本租户的任务。
      */
-    List<Job> findByUserOrderByCreatedAtDesc(UUID userId, int limit);
+    List<Job> findByTenantOrderByCreatedAtDesc(UUID tenantId, int limit);
 
     /**
      * 运维重投：把 dead / failed 拉回 queued，重新入队执行。

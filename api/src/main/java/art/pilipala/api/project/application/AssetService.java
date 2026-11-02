@@ -21,6 +21,8 @@ import org.springframework.stereotype.Service;
 /**
  * 云端素材用例：把生成结果同步进素材表、按需现签读地址、删除素材。
  *
+ * <p>素材按当前租户读写（{@code tenant_id}），插入时保留提交任务的操作者 {@code user_id}。
+ *
  * <p>素材表只存 TOS 对象键；读地址一律在这里现签（ADR 0003）。
  * 预签名 URL **绝不** 落库——过期后它就是废的。
  */
@@ -47,34 +49,35 @@ public class AssetService {
     }
 
     /**
-     * 本人的云端素材列表：先同步已成功任务的输出，再现签读地址返回。
+     * 当前租户的云端素材列表：先同步已成功任务的输出，再现签读地址返回。
      *
      * @param limit 最多返回多少条（1..100）
      */
-    public List<UserAssetView> listUserAssets(UUID userId, int limit) {
-        syncFromSucceededJobs(userId);
-        return assets.findByUserAssets(userId, clamp(limit)).stream().map(this::toView).toList();
+    public List<UserAssetView> listUserAssets(UUID tenantId, int limit) {
+        syncFromSucceededJobs(tenantId);
+        return assets.findByTenantAssets(tenantId, clamp(limit)).stream().map(this::toView).toList();
     }
 
     /**
-     * 把当前用户已成功任务的输出幂等写进素材表。
+     * 把该租户已成功任务的输出幂等写进素材表，素材挂在该租户上。
      *
      * <p>重复调用不报错也不产生重复行（唯一约束 {@code (job_id, object_key)}）。
      */
-    public void syncFromSucceededJobs(UUID userId) {
-        for (Job job : jobs.findByUserOrderByCreatedAtDesc(userId, SYNC_SCAN_LIMIT)) {
+    public void syncFromSucceededJobs(UUID tenantId) {
+        for (Job job : jobs.findByTenantOrderByCreatedAtDesc(tenantId, SYNC_SCAN_LIMIT)) {
             if (job.status() != JobStatus.SUCCEEDED) {
                 continue;
             }
             for (String objectKey : objectKeysOf(job.resultObjectKeysJson())) {
                 // 视频产物归档成 video/mp4，图片产物仍是 image/png（WP12）。
-                assets.insertGeneratedIfAbsent(userId, job.id(), objectKey, JobOutputs.mimeTypeOf(job.capability(), objectKey));
+                assets.insertGeneratedIfAbsent(tenantId, job.userId(), job.id(), objectKey,
+                        JobOutputs.mimeTypeOf(job.capability(), objectKey));
             }
         }
     }
 
-    public DeleteProjectView deleteAsset(UUID userId, UUID assetId) {
-        if (!assets.deleteAsset(assetId, userId)) {
+    public DeleteProjectView deleteAsset(UUID tenantId, UUID assetId) {
+        if (!assets.deleteAsset(assetId, tenantId)) {
             throw ProjectException.assetNotFound();
         }
         return new DeleteProjectView(assetId.toString(), true);

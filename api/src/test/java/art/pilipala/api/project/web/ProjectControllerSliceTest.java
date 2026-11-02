@@ -18,6 +18,7 @@ import java.util.UUID;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import art.pilipala.api.auth.application.CurrentTenant;
 import art.pilipala.api.auth.infra.AuthSessionService;
 import art.pilipala.api.auth.infra.SaTokenConfig;
 import art.pilipala.api.project.application.AssetService;
@@ -37,16 +38,18 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
- * C 端项目 / 素材接口的切片测试：信封、snake_case 字段、跨用户隔离。
+ * C 端项目 / 素材接口的切片测试：信封、snake_case 字段、跨租户隔离。
  *
  * <p>鉴权闸门（SaTokenConfig）在这个切片里被排除掉：会话由 mock 的
- * {@link AuthSessionService} 提供，只测控制器与信封这一层。
+ * {@link AuthSessionService} 提供，当前租户由 mock 的 {@link CurrentTenant} 提供，
+ * 只测控制器与信封这一层。
  */
 @WebMvcTest(controllers = { ProjectController.class, AssetController.class },
         excludeFilters = @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = SaTokenConfig.class))
 class ProjectControllerSliceTest {
 
     private static final UUID USER = UUID.randomUUID();
+    private static final UUID TENANT = UUID.randomUUID();
     private static final UUID PROJECT_ID = UUID.randomUUID();
     private static final UUID ASSET_ID = UUID.randomUUID();
 
@@ -57,6 +60,9 @@ class ProjectControllerSliceTest {
     private AuthSessionService sessions;
 
     @MockitoBean
+    private CurrentTenant currentTenant;
+
+    @MockitoBean
     private ProjectService projects;
 
     @MockitoBean
@@ -65,9 +71,10 @@ class ProjectControllerSliceTest {
     @Test
     void createReturnsTheProjectDetail() throws Exception {
         when(sessions.currentUserId()).thenReturn(USER.toString());
+        when(currentTenant.require(USER)).thenReturn(TENANT);
         ObjectNode canvasData = new ObjectMapper().createObjectNode();
         canvasData.putArray("nodes");
-        when(projects.create(eq(USER), eq("我的画布"), any())).thenReturn(new ProjectDetailView(
+        when(projects.create(eq(USER), eq(TENANT), eq("我的画布"), any())).thenReturn(new ProjectDetailView(
                 PROJECT_ID.toString(), "我的画布", canvasData, 1,
                 java.time.Instant.parse("2026-10-24T00:00:00Z"), java.time.Instant.parse("2026-10-24T00:00:00Z")));
 
@@ -86,7 +93,8 @@ class ProjectControllerSliceTest {
     @Test
     void listReturnsSummariesWithoutCanvasData() throws Exception {
         when(sessions.currentUserId()).thenReturn(USER.toString());
-        when(projects.list(USER)).thenReturn(List.of(new ProjectSummaryView(PROJECT_ID.toString(), "画布 1", 2,
+        when(currentTenant.require(USER)).thenReturn(TENANT);
+        when(projects.list(TENANT)).thenReturn(List.of(new ProjectSummaryView(PROJECT_ID.toString(), "画布 1", 2,
                 java.time.Instant.parse("2026-10-24T00:00:00Z"), java.time.Instant.parse("2026-10-24T00:05:00Z"))));
 
         mockMvc.perform(get("/api/v1/projects"))
@@ -97,9 +105,10 @@ class ProjectControllerSliceTest {
     }
 
     @Test
-    void getOfSomebodyElseProjectIsNotFound() throws Exception {
+    void getOfAnotherTenantProjectIsNotFound() throws Exception {
         when(sessions.currentUserId()).thenReturn(USER.toString());
-        when(projects.get(eq(USER), eq(PROJECT_ID))).thenThrow(ProjectException.projectNotFound());
+        when(currentTenant.require(USER)).thenReturn(TENANT);
+        when(projects.get(TENANT, PROJECT_ID)).thenThrow(ProjectException.projectNotFound());
 
         mockMvc.perform(get("/api/v1/projects/" + PROJECT_ID))
                 .andExpect(status().isOk())
@@ -111,6 +120,7 @@ class ProjectControllerSliceTest {
     @Test
     void malformedProjectIdIsNotFound() throws Exception {
         when(sessions.currentUserId()).thenReturn(USER.toString());
+        when(currentTenant.require(USER)).thenReturn(TENANT);
 
         mockMvc.perform(get("/api/v1/projects/not-a-uuid"))
                 .andExpect(status().isOk())
@@ -121,7 +131,8 @@ class ProjectControllerSliceTest {
     @Test
     void updateBumpsTheVersion() throws Exception {
         when(sessions.currentUserId()).thenReturn(USER.toString());
-        when(projects.update(eq(USER), eq(PROJECT_ID), eq("改名"), any())).thenReturn(new ProjectDetailView(
+        when(currentTenant.require(USER)).thenReturn(TENANT);
+        when(projects.update(TENANT, PROJECT_ID, "改名", null)).thenReturn(new ProjectDetailView(
                 PROJECT_ID.toString(), "改名", new ObjectMapper().createObjectNode(), 2,
                 java.time.Instant.parse("2026-10-24T00:00:00Z"), java.time.Instant.parse("2026-10-24T00:05:00Z")));
 
@@ -137,7 +148,8 @@ class ProjectControllerSliceTest {
     @Test
     void deleteReturnsTheDeletedFlag() throws Exception {
         when(sessions.currentUserId()).thenReturn(USER.toString());
-        when(projects.delete(USER, PROJECT_ID)).thenReturn(new DeleteProjectView(PROJECT_ID.toString(), true));
+        when(currentTenant.require(USER)).thenReturn(TENANT);
+        when(projects.delete(TENANT, PROJECT_ID)).thenReturn(new DeleteProjectView(PROJECT_ID.toString(), true));
 
         mockMvc.perform(delete("/api/v1/projects/" + PROJECT_ID))
                 .andExpect(status().isOk())
@@ -148,7 +160,8 @@ class ProjectControllerSliceTest {
     @Test
     void assetsAreListedWithAFreshSignedUrl() throws Exception {
         when(sessions.currentUserId()).thenReturn(USER.toString());
-        when(assets.listUserAssets(eq(USER), eq(100))).thenReturn(List.of(new UserAssetView(
+        when(currentTenant.require(USER)).thenReturn(TENANT);
+        when(assets.listUserAssets(TENANT, 100)).thenReturn(List.of(new UserAssetView(
                 ASSET_ID.toString(), null, PROJECT_ID.toString(), "generated", "anytoken/img/a/1.png",
                 "http://127.0.0.1:18080/pilipala-dev/anytoken/img/a/1.png?X-Tos-Signature=abc", "image/png",
                 java.time.Instant.parse("2026-10-24T00:10:00Z"))));
@@ -162,9 +175,10 @@ class ProjectControllerSliceTest {
     }
 
     @Test
-    void deletingSomebodyElseAssetIsNotFound() throws Exception {
+    void deletingAnotherTenantAssetIsNotFound() throws Exception {
         when(sessions.currentUserId()).thenReturn(USER.toString());
-        when(assets.deleteAsset(eq(USER), eq(ASSET_ID))).thenThrow(ProjectException.assetNotFound());
+        when(currentTenant.require(USER)).thenReturn(TENANT);
+        when(assets.deleteAsset(TENANT, ASSET_ID)).thenThrow(ProjectException.assetNotFound());
 
         mockMvc.perform(delete("/api/v1/assets/" + ASSET_ID))
                 .andExpect(status().isOk())
@@ -177,7 +191,8 @@ class ProjectControllerSliceTest {
     @Test
     void anUncaughtRuntimeExceptionIsSanitized() throws Exception {
         when(sessions.currentUserId()).thenReturn(USER.toString());
-        when(projects.list(USER)).thenThrow(new IllegalStateException("relation \"canvas_project\" does not exist"));
+        when(currentTenant.require(USER)).thenReturn(TENANT);
+        when(projects.list(TENANT)).thenThrow(new IllegalStateException("relation \"canvas_project\" does not exist"));
 
         mockMvc.perform(get("/api/v1/projects"))
                 .andExpect(status().isOk())

@@ -17,8 +17,8 @@ public class GetMembershipMe {
         this.subscriptions = subscriptions;
     }
 
-    public Optional<MembershipMeView> get(UUID userId) {
-        UserSubscription sub = subscriptions.findActiveByUser(userId);
+    public Optional<MembershipMeView> get(UUID tenantId) {
+        UserSubscription sub = subscriptions.findActiveByTenant(tenantId);
         if (sub == null) {
             return Optional.empty();
         }

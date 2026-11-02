@@ -8,14 +8,14 @@ import java.util.UUID;
  * <p>由后台对账器与钱包查询接口扫出来，再交给 {@code WalletService} 幂等结算。
  *
  * @param holdId   冻结单 id
- * @param userId   冻结人
+ * @param tenantId 冻结单所属租户（钱包按它定位）
  * @param jobId    关联任务
  * @param amount   冻结额
  * @param jobState 任务终态
  */
 public record PendingSettlement(
         UUID holdId,
-        UUID userId,
+        UUID tenantId,
         UUID jobId,
         long amount,
         JobTerminalState jobState) {

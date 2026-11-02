@@ -38,7 +38,7 @@ public class AdminI18nController {
      */
     @GetMapping
     public ApiResponse<List<I18nMessageView>> list(@RequestParam(value = "q", required = false) String query) {
-        guard.requireAdmin();
+        guard.require("i18n.read");
         return ApiResponse.ok(messages.list(query));
     }
 
@@ -47,7 +47,7 @@ public class AdminI18nController {
      */
     @PutMapping
     public ApiResponse<I18nMessageView> upsert(@RequestBody UpsertRequest request) {
-        guard.requireAdmin();
+        guard.require("i18n.write");
         return ApiResponse.ok(upsert.upsert(request.key(), request.locale(), request.template()));
     }
 

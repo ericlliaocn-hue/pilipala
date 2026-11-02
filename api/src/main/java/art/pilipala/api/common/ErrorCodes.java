@@ -44,6 +44,8 @@ public final class ErrorCodes {
     public static final String RECHARGE_NOT_REFUNDABLE = "RECHARGE_NOT_REFUNDABLE";
     /** WP17：验证码发送冷却或小时/日发送上限。 */
     public static final String OTP_RATE_LIMITED = "OTP_RATE_LIMITED";
+    /** M4 步骤 2：账号已停用，登录与重置密码都拒绝，不发会话。 */
+    public static final String ACCOUNT_DISABLED = "ACCOUNT_DISABLED";
 
     private ErrorCodes() {
     }

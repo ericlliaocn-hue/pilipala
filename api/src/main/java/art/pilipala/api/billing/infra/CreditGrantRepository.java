@@ -8,7 +8,8 @@ import art.pilipala.api.billing.domain.CreditGrant;
 
 public interface CreditGrantRepository {
 
-    CreditGrant insert(CreditGrant draft);
+    /** 批次归属租户（{@code tenant_id} 非空），{@code grant.userId()} 只表示操作者。 */
+    CreditGrant insert(UUID tenantId, CreditGrant grant);
 
     List<CreditGrant> listConsumableForUpdate(UUID walletId);
 
@@ -18,7 +19,8 @@ public interface CreditGrantRepository {
 
     List<CreditGrant> findExpiredForUpdate(Instant before, int limit);
 
-    List<CreditGrant> listActiveSummary(UUID userId, int limit);
+    /** C 端钱包快照里的批次，按该租户钱包的 {@code wallet_id} 查。 */
+    List<CreditGrant> listActiveSummary(UUID walletId, int limit);
 
-    List<CreditGrant> listSubscriptionRemainingForUpdate(UUID userId);
+    List<CreditGrant> listSubscriptionRemainingForUpdate(UUID tenantId);
 }

@@ -2,6 +2,7 @@ package art.pilipala.api.billing.web;
 
 import java.util.UUID;
 
+import art.pilipala.api.auth.application.CurrentTenant;
 import art.pilipala.api.billing.application.CreateMembershipCheckout;
 import art.pilipala.api.billing.application.GetMembershipMe;
 import art.pilipala.api.billing.application.ListMembershipPlans;
@@ -21,12 +22,15 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/billing")
 public class MembershipController {
 
+    private final CurrentTenant currentTenant;
     private final ListMembershipPlans listPlans;
     private final GetMembershipMe membershipMe;
     private final CreateMembershipCheckout checkout;
 
     public MembershipController(
+            CurrentTenant currentTenant,
             ListMembershipPlans listPlans, GetMembershipMe membershipMe, CreateMembershipCheckout checkout) {
+        this.currentTenant = currentTenant;
         this.listPlans = listPlans;
         this.membershipMe = membershipMe;
         this.checkout = checkout;
@@ -41,7 +45,7 @@ public class MembershipController {
     @GetMapping("/me")
     public ApiResponse<GetMembershipMe.MembershipMeView> me() {
         UUID userId = UUID.fromString(StpUtil.getLoginIdAsString());
-        return ApiResponse.ok(membershipMe.get(userId).orElse(null));
+        return ApiResponse.ok(membershipMe.get(currentTenant.require(userId)).orElse(null));
     }
 
     @PostMapping("/checkout")
@@ -50,7 +54,8 @@ public class MembershipController {
             throw JobException.validation();
         }
         UUID userId = UUID.fromString(StpUtil.getLoginIdAsString());
-        return ApiResponse.ok(checkout.checkout(userId, body.priceId(), body.device(), request));
+        return ApiResponse.ok(checkout.checkout(
+                userId, currentTenant.require(userId), body.priceId(), body.device(), request));
     }
 
     public record CheckoutRequest(Long price_id, String device) {

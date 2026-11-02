@@ -1,7 +1,10 @@
 package art.pilipala.api.admin.web;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -23,16 +26,19 @@ import art.pilipala.api.admin.application.ListAdminJobs;
 import art.pilipala.api.admin.application.ListAdminUsers;
 import art.pilipala.api.admin.application.ListEnabledModels;
 import art.pilipala.api.admin.application.ListI18nMessages;
+import art.pilipala.api.admin.application.ListAdminRechargeOrders;
 import art.pilipala.api.admin.application.ListModelDisplayConfig;
 import art.pilipala.api.admin.application.ListWalletLedger;
+import art.pilipala.api.admin.application.RefundAdminRechargeOrder;
 import art.pilipala.api.admin.application.ModelDisplayConfigView;
 import art.pilipala.api.admin.application.RetryAdminJob;
 import art.pilipala.api.admin.application.TopUpUserWallet;
 import art.pilipala.api.admin.application.UpdateModelDisplayConfig;
 import art.pilipala.api.admin.application.UpsertI18nMessage;
-import art.pilipala.api.admin.infra.AdminBootstrap;
+import art.pilipala.api.auth.application.AccessCheck;
 import art.pilipala.api.auth.infra.AuthSessionService;
 import art.pilipala.api.auth.infra.SaTokenConfig;
+import art.pilipala.api.billing.application.RechargeOrderView;
 import art.pilipala.api.billing.application.WalletView;
 import art.pilipala.api.job.domain.ModelProduct;
 import art.pilipala.api.job.domain.ModelProductGroup;
@@ -52,16 +58,20 @@ import org.springframework.test.web.servlet.MockMvc;
  * 运维后台接口的切片测试：权限闸门、信封、snake_case 字段、上游原文只在 Admin 可见。
  *
  * <p>鉴权闸门（SaTokenConfig）在这个切片里被排除掉：会话由 mock 的
- * {@link AuthSessionService} 提供，只测控制器与信封这一层。
+ * {@link AuthSessionService} 提供，平台权限由 mock 的 {@link AccessCheck} 给出，
+ * 只测控制器、权限码与信封这一层。
  */
 @WebMvcTest(controllers = { AdminUserController.class, AdminWalletController.class, AdminJobController.class,
-        AdminI18nController.class, AdminModelController.class, ModelController.class, AdminVideoController.class },
+        AdminI18nController.class, AdminModelController.class, ModelController.class, AdminVideoController.class,
+        AdminBillingRechargeController.class },
         excludeFilters = @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = SaTokenConfig.class))
 @Import(AdminGuard.class)
 class AdminControllerSliceTest {
 
     private static final UUID USER = UUID.randomUUID();
+    private static final UUID TARGET = UUID.randomUUID();
     private static final UUID JOB_ID = UUID.randomUUID();
+    private static final UUID ORDER_ID = UUID.randomUUID();
 
     @Autowired
     private MockMvc mockMvc;
@@ -70,7 +80,7 @@ class AdminControllerSliceTest {
     private AuthSessionService sessions;
 
     @MockitoBean
-    private AdminBootstrap adminBootstrap;
+    private AccessCheck access;
 
     @MockitoBean
     private ListAdminUsers listAdminUsers;
@@ -83,6 +93,12 @@ class AdminControllerSliceTest {
 
     @MockitoBean
     private ListAdminJobs listAdminJobs;
+
+    @MockitoBean
+    private ListAdminRechargeOrders listAdminRechargeOrders;
+
+    @MockitoBean
+    private RefundAdminRechargeOrder refundAdminRechargeOrder;
 
     @MockitoBean
     private RetryAdminJob retryAdminJob;
@@ -109,7 +125,7 @@ class AdminControllerSliceTest {
 
     @Test
     void aNormalUserIsForbidden() throws Exception {
-        loginAs(false);
+        loginWith();
 
         mockMvc.perform(get("/api/v1/admin/users"))
                 .andExpect(status().isOk())
@@ -121,7 +137,7 @@ class AdminControllerSliceTest {
 
     @Test
     void aNormalUserIsForbiddenOnEveryAdminRoute() throws Exception {
-        loginAs(false);
+        loginWith();
 
         mockMvc.perform(get("/api/v1/admin/jobs"))
                 .andExpect(jsonPath("$.error_code").value("FORBIDDEN"));
@@ -133,6 +149,39 @@ class AdminControllerSliceTest {
                                 {"key":"K","locale":"zh","template":"t"}"""))
                 .andExpect(jsonPath("$.error_code").value("FORBIDDEN"));
         mockMvc.perform(get("/api/v1/admin/models"))
+                .andExpect(jsonPath("$.error_code").value("FORBIDDEN"));
+    }
+
+    /** 逐接口按码判定：只有 user.read 的运维加不了额，持有 wallet.topup 才放行。 */
+    @Test
+    void topUpNeedsItsOwnPermissionCode() throws Exception {
+        loginWith("user.read");
+        when(topUpUserWallet.topUp(eq(USER), eq(TARGET), eq(100L), eq("k1"), eq("客服补偿")))
+                .thenReturn(new WalletView(TARGET.toString(), 220L, 0L, Instant.parse("2026-10-24T00:00:00Z")));
+
+        mockMvc.perform(topUpCall())
+                .andExpect(jsonPath("$.ok").value(false))
+                .andExpect(jsonPath("$.error_code").value("FORBIDDEN"));
+        verify(topUpUserWallet, never()).topUp(any(), any(), anyLong(), any(), any());
+
+        loginWith("user.read", "wallet.topup");
+
+        mockMvc.perform(topUpCall())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.data.available").value(220));
+    }
+
+    /** 「有任意平台角色就全过」已经去掉：finance 角色改不动模型配置。 */
+    @Test
+    void aFinanceRoleCannotReachTheModelRoutes() throws Exception {
+        loginWith("wallet.topup", "ledger.read", "recharge.read", "recharge.refund");
+
+        mockMvc.perform(get("/api/v1/admin/models"))
+                .andExpect(jsonPath("$.error_code").value("FORBIDDEN"));
+        mockMvc.perform(put("/api/v1/admin/models/gpt-image-2")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"display_name":"GPT Image 2","capability":"image.generate","enabled":false,"sort_order":10}"""))
                 .andExpect(jsonPath("$.error_code").value("FORBIDDEN"));
     }
 
@@ -150,7 +199,7 @@ class AdminControllerSliceTest {
 
     @Test
     void anAdminGetsTheUserList() throws Exception {
-        loginAs(true);
+        loginWith("user.read");
         when(listAdminUsers.list(any(), any(Integer.class)))
                 .thenReturn(List.of(new AdminUserView(USER, "demo", "zh", 120L, 30L,
                         Instant.parse("2026-10-24T00:00:00Z"), Instant.parse("2026-10-24T01:00:00Z"))));
@@ -166,37 +215,55 @@ class AdminControllerSliceTest {
 
     @Test
     void topUpReturnsTheWalletSnapshot() throws Exception {
-        loginAs(true);
-        when(topUpUserWallet.topUp(eq(USER), eq(100L)))
-                .thenReturn(new WalletView(USER.toString(), 220L, 0L, Instant.parse("2026-10-24T00:00:00Z")));
+        loginWith("wallet.topup");
+        when(topUpUserWallet.topUp(eq(USER), eq(TARGET), eq(100L), eq("k1"), eq("客服补偿")))
+                .thenReturn(new WalletView(TARGET.toString(), 220L, 0L, Instant.parse("2026-10-24T00:00:00Z")));
 
-        mockMvc.perform(post("/api/v1/admin/wallets/" + USER + "/topup")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"amount":100}"""))
+        mockMvc.perform(topUpCall())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.ok").value(true))
-                .andExpect(jsonPath("$.data.user_id").value(USER.toString()))
+                // data.user_id 仍然是被加额的那个用户
+                .andExpect(jsonPath("$.data.user_id").value(TARGET.toString()))
                 .andExpect(jsonPath("$.data.available").value(220));
     }
 
     @Test
     void topUpWithANonPositiveAmountUsesTheEnvelope() throws Exception {
-        loginAs(true);
-        when(topUpUserWallet.topUp(eq(USER), eq(0L))).thenThrow(JobException.validation());
+        loginWith("wallet.topup");
+        when(topUpUserWallet.topUp(eq(USER), eq(TARGET), eq(0L), eq("k1"), eq("客服补偿")))
+                .thenThrow(JobException.validation());
 
-        mockMvc.perform(post("/api/v1/admin/wallets/" + USER + "/topup")
+        mockMvc.perform(post("/api/v1/admin/wallets/" + TARGET + "/topup")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"amount":0}"""))
+                                {"amount":0,"idempotency_key":"k1","reason":"客服补偿"}"""))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.ok").value(false))
                 .andExpect(jsonPath("$.error_code").value("VALIDATION_ERROR"));
     }
 
+    /** 幂等键与原因是必填项，缺失时按参数不合法处理。 */
+    @Test
+    void topUpWithoutTheKeyOrReasonIsAValidationError() throws Exception {
+        loginWith("wallet.topup");
+        when(topUpUserWallet.topUp(any(), any(), anyLong(), any(), any()))
+                .thenThrow(JobException.validation());
+
+        mockMvc.perform(post("/api/v1/admin/wallets/" + TARGET + "/topup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"amount":100,"reason":"客服补偿"}"""))
+                .andExpect(jsonPath("$.error_code").value("VALIDATION_ERROR"));
+        mockMvc.perform(post("/api/v1/admin/wallets/" + TARGET + "/topup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"amount":100,"idempotency_key":"k1"}"""))
+                .andExpect(jsonPath("$.error_code").value("VALIDATION_ERROR"));
+    }
+
     @Test
     void theLedgerIsListedForOneUser() throws Exception {
-        loginAs(true);
+        loginWith("ledger.read");
         when(listWalletLedger.list(eq(USER), any(Integer.class)))
                 .thenReturn(List.of(new AdminLedgerEntryView(UUID.randomUUID(), USER, "topup", 100L, null, null,
                         Instant.parse("2026-10-24T00:00:00Z"))));
@@ -208,12 +275,51 @@ class AdminControllerSliceTest {
                 .andExpect(jsonPath("$.data[0].amount").value(100));
     }
 
+    // ----- 充值订单退款 -----
+
+    @Test
+    void refundNeedsItsOwnPermissionCode() throws Exception {
+        loginWith("recharge.read");
+
+        mockMvc.perform(refundCall())
+                .andExpect(jsonPath("$.ok").value(false))
+                .andExpect(jsonPath("$.error_code").value("FORBIDDEN"));
+        verify(refundAdminRechargeOrder, never()).refund(any(), any(), any(), any());
+    }
+
+    /** 退款动作带上操作者、幂等键与原因；重放语义在 AdminOpsTest 里验。 */
+    @Test
+    void refundPassesTheActorKeyAndReasonThrough() throws Exception {
+        loginWith("recharge.refund");
+        when(refundAdminRechargeOrder.refund(eq(USER), eq(ORDER_ID), eq("k1"), eq("重复支付退款")))
+                .thenReturn(new RechargeOrderView(ORDER_ID.toString(), "flr_1", "refunded", 1000, 100, null, null,
+                        null, Instant.parse("2026-10-24T00:00:00Z")));
+
+        mockMvc.perform(refundCall())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.data.status").value("refunded"))
+                .andExpect(jsonPath("$.data.id").value(ORDER_ID.toString()));
+    }
+
+    /** 退款接口现在必须有请求体：没有 body 是参数不合法，不再是「空 body 也能退」。 */
+    @Test
+    void refundWithoutABodyIsAValidationError() throws Exception {
+        loginWith("recharge.refund");
+
+        mockMvc.perform(post("/api/v1/admin/billing/recharge-orders/" + ORDER_ID + "/refund"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(false))
+                .andExpect(jsonPath("$.error_code").value("VALIDATION_ERROR"));
+        verify(refundAdminRechargeOrder, never()).refund(any(), any(), any(), any());
+    }
+
     // ----- 任务排障 -----
 
     @Test
     void theUpstreamRawTextOnlyShowsUpInTheAdminResponse() throws Exception {
-        loginAs(true);
-        when(listAdminJobs.list(any(), any(), any(Integer.class)))
+        loginWith("job.read", "job.provider_raw");
+        when(listAdminJobs.list(any(), any(), any(Integer.class), eq(true)))
                 .thenReturn(List.of(new AdminJobView(JOB_ID, USER, "demo", "dead", "image.generate", "gpt-image-2",
                         "a cat", 3, 3, null, null, "PROVIDER_UNAVAILABLE",
                         Instant.parse("2026-10-24T00:00:00Z"), Instant.parse("2026-10-24T01:00:00Z"),
@@ -231,9 +337,22 @@ class AdminControllerSliceTest {
                 .andExpect(jsonPath("$.data[0].provider_tasks[0].upstream_request_id").value("req-1"));
     }
 
+    /** 没有 job.provider_raw 时，列表调用直接不带原文。 */
+    @Test
+    void theRawFlagFollowsTheProviderRawCode() throws Exception {
+        loginWith("job.read");
+        when(listAdminJobs.list(any(), any(), any(Integer.class), eq(false))).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/v1/admin/jobs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true));
+
+        verify(listAdminJobs).list(null, null, 50, false);
+    }
+
     @Test
     void retryReturnsTheQueuedJob() throws Exception {
-        loginAs(true);
+        loginWith("job.retry");
         when(retryAdminJob.retry(eq(JOB_ID)))
                 .thenReturn(new AdminJobView(JOB_ID, USER, "demo", "queued", "image.generate", "gpt-image-2",
                         "a cat", 3, 4, null, null, null,
@@ -251,7 +370,7 @@ class AdminControllerSliceTest {
 
     @Test
     void anI18nMessageCanBeUpdated() throws Exception {
-        loginAs(true);
+        loginWith("i18n.read");
         when(listI18nMessages.list(any()))
                 .thenReturn(List.of(new I18nMessageView(UUID.randomUUID(), "WALLET_INSUFFICIENT", "zh",
                         "余额不足，请联系管理员充值。", Instant.parse("2026-10-24T00:00:00Z"))));
@@ -266,7 +385,7 @@ class AdminControllerSliceTest {
 
     @Test
     void theModelConfigIsListedAndUpdated() throws Exception {
-        loginAs(true);
+        loginWith("model.read", "model.write");
         when(listModelDisplayConfig.list())
                 .thenReturn(List.of(new ModelDisplayConfigView(UUID.randomUUID(), "gpt-image-2", "image.generate",
                         "GPT Image 2", true, 10, Instant.parse("2026-10-24T00:00:00Z"))));
@@ -305,7 +424,7 @@ class AdminControllerSliceTest {
 
     @Test
     void anAdminCanReadVideoProductsAndGroups() throws Exception {
-        loginAs(true);
+        loginWith("model.read");
         ModelProduct product = new ModelProduct(UUID.randomUUID(), "video-stable", "video.generate",
                 "Video", "test", 30, "{}", true, 10);
         ModelProductGroup group = new ModelProductGroup(UUID.randomUUID(), product.id(), "default", "sd-2-c4",
@@ -328,14 +447,31 @@ class AdminControllerSliceTest {
 
     @Test
     void aNormalUserCannotReadVideoProducts() throws Exception {
-        loginAs(false);
+        loginWith("job.read");
 
         mockMvc.perform(get("/api/v1/admin/video/products"))
                 .andExpect(jsonPath("$.error_code").value("FORBIDDEN"));
     }
 
-    private void loginAs(boolean platformStaff) {
+    /** 让 {@code USER} 在平台范围持有这些权限码；其余码 {@link AccessCheck} 默认返回 false。 */
+    private void loginWith(String... platformCodes) {
         when(sessions.currentUserId()).thenReturn(USER.toString());
-        when(adminBootstrap.isPlatformStaff(USER)).thenReturn(platformStaff);
+        for (String code : platformCodes) {
+            when(access.hasPlatform(USER, code)).thenReturn(true);
+        }
+    }
+
+    private org.springframework.test.web.servlet.RequestBuilder refundCall() {
+        return post("/api/v1/admin/billing/recharge-orders/" + ORDER_ID + "/refund")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"idempotency_key":"k1","reason":"重复支付退款"}""");
+    }
+
+    private org.springframework.test.web.servlet.RequestBuilder topUpCall() {
+        return post("/api/v1/admin/wallets/" + TARGET + "/topup")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"amount":100,"idempotency_key":"k1","reason":"客服补偿"}""");
     }
 }

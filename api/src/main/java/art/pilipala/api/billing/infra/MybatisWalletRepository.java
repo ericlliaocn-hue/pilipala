@@ -22,13 +22,13 @@ public class MybatisWalletRepository implements WalletRepository {
     }
 
     @Override
-    public Optional<Wallet> findByUserId(UUID userId) {
-        return Optional.ofNullable(mapper.findByUserId(userId));
+    public Optional<Wallet> findByTenantId(UUID tenantId) {
+        return Optional.ofNullable(mapper.findByTenantId(tenantId));
     }
 
     @Override
-    public Optional<Wallet> insertIfAbsent(UUID userId) {
-        return Optional.ofNullable(mapper.insertIfAbsent(userId));
+    public UUID openForTenant(UUID tenantId) {
+        return mapper.openForTenant(tenantId);
     }
 
     @Override

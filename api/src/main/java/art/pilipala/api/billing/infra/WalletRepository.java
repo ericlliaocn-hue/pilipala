@@ -10,15 +10,21 @@ import art.pilipala.api.billing.domain.Wallet;
  *
  * <p>定义成接口是为了让应用层用例能在没有数据库的情况下被测试。
  * 余额变动方法都带守卫条件：更新 0 行表示余额不足，返回 false，调用方负责回滚。
+ *
+ * <p>钱包属于租户，按 {@code tenant_id} 定位（{@code wallet.user_id} 已删除）。
  */
 public interface WalletRepository {
 
     Optional<Wallet> findWallet(UUID walletId);
 
-    Optional<Wallet> findByUserId(UUID userId);
+    Optional<Wallet> findByTenantId(UUID tenantId);
 
-    /** 插入一个 0 余额的钱包；该用户已有钱包时不插入。返回新插入的钱包。 */
-    Optional<Wallet> insertIfAbsent(UUID userId);
+    /**
+     * 给新租户开一只 0 余额钱包。
+     *
+     * @return 新钱包 id
+     */
+    UUID openForTenant(UUID tenantId);
 
     /** 冻结：可用减、已冻加。{@code available < amount} 时不更新，返回 false。 */
     boolean reserve(UUID walletId, long amount);

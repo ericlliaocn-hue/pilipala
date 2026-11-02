@@ -3,6 +3,7 @@ package art.pilipala.api.project.web;
 import java.util.List;
 import java.util.UUID;
 
+import art.pilipala.api.auth.application.CurrentTenant;
 import art.pilipala.api.auth.infra.AuthException;
 import art.pilipala.api.auth.infra.AuthSessionService;
 import art.pilipala.api.common.ApiResponse;
@@ -27,21 +28,25 @@ import org.springframework.web.bind.annotation.RestController;
 public class AssetController {
 
     private final AuthSessionService sessions;
+    private final CurrentTenant currentTenant;
     private final AssetService assets;
 
-    public AssetController(AuthSessionService sessions, AssetService assets) {
+    public AssetController(AuthSessionService sessions, CurrentTenant currentTenant, AssetService assets) {
         this.sessions = sessions;
+        this.currentTenant = currentTenant;
         this.assets = assets;
     }
 
     @GetMapping
     public ApiResponse<List<UserAssetView>> list(@RequestParam(value = "limit", defaultValue = "100") int limit) {
-        return ApiResponse.ok(assets.listUserAssets(currentUserId(), limit));
+        UUID userId = currentUserId();
+        return ApiResponse.ok(assets.listUserAssets(currentTenant.require(userId), limit));
     }
 
     @DeleteMapping("/{assetId}")
     public ApiResponse<DeleteProjectView> delete(@PathVariable String assetId) {
-        return ApiResponse.ok(assets.deleteAsset(currentUserId(), assetIdOf(assetId)));
+        UUID userId = currentUserId();
+        return ApiResponse.ok(assets.deleteAsset(currentTenant.require(userId), assetIdOf(assetId)));
     }
 
     private UUID currentUserId() {

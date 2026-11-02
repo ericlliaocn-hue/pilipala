@@ -44,12 +44,12 @@ public class WalletHoldSettlementTick {
     }
 
     /**
-     * 只结算某个用户的待结算冻结单（读接口兜底用，保证客户端立刻看到最新余额）。
+     * 只结算某个租户的待结算冻结单（读接口兜底用，保证客户端立刻看到最新余额）。
      *
      * @return 本轮结算的条数
      */
-    public int settleForUser(UUID userId) {
-        return settle(holds.findPendingSettlement(userId, properties.settleBatchSize()));
+    public int settleForTenant(UUID tenantId) {
+        return settle(holds.findPendingSettlement(tenantId, properties.settleBatchSize()));
     }
 
     private int settle(List<PendingSettlement> pending) {

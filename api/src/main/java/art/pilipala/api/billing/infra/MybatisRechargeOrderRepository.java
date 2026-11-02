@@ -22,6 +22,7 @@ public class MybatisRechargeOrderRepository implements RechargeOrderRepository {
     @Override
     public RechargeOrder insertCreated(RechargeOrder draft) {
         return mapper.insertCreated(
+                draft.tenantId(),
                 draft.userId(),
                 draft.outTradeNo(),
                 draft.packageId(),

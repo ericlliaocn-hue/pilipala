@@ -65,7 +65,8 @@ public class RetryAdminJob {
         }
         UUID eventId = UUID.randomUUID();
         outbox.insertPending(eventId, "job", jobId, JobMessagePayload.of(jobId, eventId));
-        return assembler.assembleAll(List.of(adminJobs.findJob(jobId).orElseThrow(JobException::notFound))).get(0);
+        // 重投是运维自己的动作，raw 裁剪只针对 GET 列表；这里始终带原文。
+        return assembler.assembleAll(List.of(adminJobs.findJob(jobId).orElseThrow(JobException::notFound)), true).get(0);
     }
 
     /** 冻结单还在冻着就保留 hold 关联；否则视为已结清，重投不再二次结算。 */

@@ -28,38 +28,38 @@ public class AdminMembershipPlanController {
 
     @GetMapping
     public ApiResponse<List<AdminMembershipPlanView>> list() {
-        guard.requireAdmin();
+        guard.require("membership.read");
         return ApiResponse.ok(plans.listPlans());
     }
 
     @PostMapping("/{id}/enable")
     public ApiResponse<AdminMembershipPlanView> enable(@PathVariable long id) {
-        guard.requireAdmin();
+        guard.require("membership.write");
         return ApiResponse.ok(plans.setPlanEnabled(id, true));
     }
 
     @PostMapping("/{id}/disable")
     public ApiResponse<AdminMembershipPlanView> disable(@PathVariable long id) {
-        guard.requireAdmin();
+        guard.require("membership.write");
         return ApiResponse.ok(plans.setPlanEnabled(id, false));
     }
 
     @GetMapping("/prices")
     public ApiResponse<List<AdminMembershipPlanPriceView>> listPrices(
             @RequestParam(value = "plan_id", required = false) Long planId) {
-        guard.requireAdmin();
+        guard.require("membership.read");
         return ApiResponse.ok(plans.listPrices(planId));
     }
 
     @PostMapping("/prices/{id}/enable")
     public ApiResponse<AdminMembershipPlanPriceView> enablePrice(@PathVariable long id) {
-        guard.requireAdmin();
+        guard.require("membership.write");
         return ApiResponse.ok(plans.setPriceEnabled(id, true));
     }
 
     @PostMapping("/prices/{id}/disable")
     public ApiResponse<AdminMembershipPlanPriceView> disablePrice(@PathVariable long id) {
-        guard.requireAdmin();
+        guard.require("membership.write");
         return ApiResponse.ok(plans.setPriceEnabled(id, false));
     }
 }

@@ -58,9 +58,10 @@ public class CreateMembershipCheckout {
     }
 
     @Transactional
-    public RechargeOrderView checkout(UUID userId, long priceId, String device, HttpServletRequest request) {
+    public RechargeOrderView checkout(UUID userId, UUID tenantId, long priceId, String device,
+            HttpServletRequest request) {
         config.requireCreateOrderConfig();
-        if (subscriptions.findActiveByUser(userId) != null) {
+        if (subscriptions.findActiveByTenant(tenantId) != null) {
             throw JobException.validation();
         }
         MembershipPlanPrice price = prices.findById(priceId);
@@ -77,6 +78,7 @@ public class CreateMembershipCheckout {
         String displayName = plan.nameZh() + " · " + cycleLabel(price.cycle());
         RechargeOrder created = orders.insertCreated(new RechargeOrder(
                 null,
+                tenantId,
                 userId,
                 outTradeNo,
                 "zpay",

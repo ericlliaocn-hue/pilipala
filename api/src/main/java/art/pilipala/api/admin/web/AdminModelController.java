@@ -36,7 +36,7 @@ public class AdminModelController {
     /** 全部展示配置（含已下架的）。 */
     @GetMapping
     public ApiResponse<List<ModelDisplayConfigView>> list() {
-        guard.requireAdmin();
+        guard.require("model.read");
         return ApiResponse.ok(models.list());
     }
 
@@ -45,7 +45,7 @@ public class AdminModelController {
      */
     @PutMapping("/{model}")
     public ApiResponse<ModelDisplayConfigView> update(@PathVariable String model, @RequestBody UpdateRequest request) {
-        guard.requireAdmin();
+        guard.require("model.write");
         return ApiResponse.ok(update.update(model, request.displayName(), request.capability(), request.enabled(),
                 request.sortOrder()));
     }

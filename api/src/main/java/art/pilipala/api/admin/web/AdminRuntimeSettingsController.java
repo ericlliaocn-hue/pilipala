@@ -25,13 +25,13 @@ public class AdminRuntimeSettingsController {
 
     @GetMapping
     public ApiResponse<Map<String, String>> list() {
-        guard.requireAdmin();
+        guard.require("runtime.read");
         return ApiResponse.ok(settings.listAll());
     }
 
     @PatchMapping
     public ApiResponse<Map<String, String>> patch(@RequestBody Map<String, String> body) {
-        guard.requireAdmin();
+        guard.require("runtime.write");
         return ApiResponse.ok(settings.patch(body));
     }
 }

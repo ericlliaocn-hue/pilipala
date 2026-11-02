@@ -44,8 +44,9 @@ public class AdminWalletController {
      */
     @PostMapping("/{userId}/topup")
     public ApiResponse<WalletView> topUp(@PathVariable String userId, @RequestBody TopUpRequest request) {
-        guard.requireAdmin();
-        return ApiResponse.ok(topUp.topUp(userIdOf(userId), request.amount()));
+        guard.require("wallet.topup");
+        return ApiResponse.ok(topUp.topUp(guard.currentUserId(), userIdOf(userId), request.amount(),
+                request.idempotencyKey(), request.reason()));
     }
 
     /**
@@ -54,7 +55,7 @@ public class AdminWalletController {
     @GetMapping("/{userId}/ledger")
     public ApiResponse<List<AdminLedgerEntryView>> ledger(@PathVariable String userId,
                                                            @RequestParam(value = "limit", defaultValue = "50") int limit) {
-        guard.requireAdmin();
+        guard.require("ledger.read");
         return ApiResponse.ok(ledger.list(userIdOf(userId), limit));
     }
 
@@ -71,7 +72,9 @@ public class AdminWalletController {
      * 充值请求体。
      *
      * @param amount 充值的 credit 数，必须大于 0
+     * @param idempotencyKey 必填，1 到 64 字符；同一运维同一个键只入账一次
+     * @param reason 必填的操作原因，1 到 200 字符，写进审计流水
      */
-    public record TopUpRequest(long amount) {
+    public record TopUpRequest(long amount, String idempotencyKey, String reason) {
     }
 }

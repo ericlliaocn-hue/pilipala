@@ -6,13 +6,14 @@ import java.util.UUID;
 import art.pilipala.api.admin.application.AdminGuard;
 import art.pilipala.api.admin.application.AdminRechargeOrderView;
 import art.pilipala.api.admin.application.ListAdminRechargeOrders;
-import art.pilipala.api.billing.application.RefundRechargeOrder;
+import art.pilipala.api.admin.application.RefundAdminRechargeOrder;
 import art.pilipala.api.billing.application.RechargeOrderView;
 import art.pilipala.api.common.ApiResponse;
 import art.pilipala.api.job.infra.JobException;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -23,9 +24,10 @@ public class AdminBillingRechargeController {
 
     private final AdminGuard guard;
     private final ListAdminRechargeOrders list;
-    private final RefundRechargeOrder refund;
+    private final RefundAdminRechargeOrder refund;
 
-    public AdminBillingRechargeController(AdminGuard guard, ListAdminRechargeOrders list, RefundRechargeOrder refund) {
+    public AdminBillingRechargeController(AdminGuard guard, ListAdminRechargeOrders list,
+            RefundAdminRechargeOrder refund) {
         this.guard = guard;
         this.list = list;
         this.refund = refund;
@@ -37,14 +39,15 @@ public class AdminBillingRechargeController {
             @RequestParam(value = "status", required = false) String status,
             @RequestParam(value = "out_trade_no", required = false) String outTradeNo,
             @RequestParam(value = "limit", defaultValue = "50") int limit) {
-        guard.requireAdmin();
+        guard.require("recharge.read");
         return ApiResponse.ok(list.list(userId, status, outTradeNo, limit));
     }
 
     @PostMapping("/{id}/refund")
-    public ApiResponse<RechargeOrderView> refund(@PathVariable String id) {
-        guard.requireAdmin();
-        return ApiResponse.ok(refund.refund(orderId(id)));
+    public ApiResponse<RechargeOrderView> refund(@PathVariable String id, @RequestBody RefundRequest request) {
+        guard.require("recharge.refund");
+        return ApiResponse.ok(refund.refund(guard.currentUserId(), orderId(id),
+                request.idempotencyKey(), request.reason()));
     }
 
     private UUID orderId(String raw) {
@@ -53,5 +56,14 @@ public class AdminBillingRechargeController {
         } catch (IllegalArgumentException e) {
             throw JobException.validation();
         }
+    }
+
+    /**
+     * 退款请求体。
+     *
+     * @param idempotencyKey 必填，1 到 64 字符；同一运维同一个键只退款一次
+     * @param reason 必填的操作原因，1 到 200 字符，写进审计流水
+     */
+    public record RefundRequest(String idempotencyKey, String reason) {
     }
 }

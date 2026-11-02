@@ -13,7 +13,9 @@ import art.pilipala.api.project.support.InMemoryProjectStore;
 import org.junit.jupiter.api.Test;
 
 /**
- * 云端项目用例：创建、列表、详情、更新、删除，以及跨用户隔离与参数校验。
+ * 云端项目用例：创建、列表、详情、更新、删除，以及跨租户隔离与参数校验。
+ *
+ * <p>项目归属当前租户：{@code user_id} 只是操作者，同一租户里换设备也看得见。
  */
 class ProjectServiceTest {
 
@@ -23,13 +25,15 @@ class ProjectServiceTest {
 
     private final UUID owner = UUID.randomUUID();
     private final UUID other = UUID.randomUUID();
+    private final UUID ownerTenant = UUID.randomUUID();
+    private final UUID otherTenant = UUID.randomUUID();
 
     @Test
     void createStoresTheSnapshotAndReturnsVersionOne() {
         ObjectNode snapshot = mapper.createObjectNode();
         snapshot.putArray("nodes");
 
-        ProjectDetailView created = service.create(owner, "我的画布", snapshot);
+        ProjectDetailView created = service.create(owner, ownerTenant, "我的画布", snapshot);
 
         assertThat(created.name()).isEqualTo("我的画布");
         assertThat(created.version()).isEqualTo(1);
@@ -39,27 +43,27 @@ class ProjectServiceTest {
 
     @Test
     void createWithoutCanvasDataStoresAnEmptyObject() {
-        ProjectDetailView created = service.create(owner, "空画布", null);
+        ProjectDetailView created = service.create(owner, ownerTenant, "空画布", null);
 
         assertThat(created.canvasData().isObject()).isTrue();
         assertThat(created.canvasData().isEmpty()).isTrue();
     }
 
     @Test
-    void listReturnsOnlyTheOwnProjects() {
-        service.create(owner, "A", null);
-        service.create(owner, "B", null);
-        service.create(other, "别人的", null);
+    void listReturnsOnlyTheTenantsProjects() {
+        service.create(owner, ownerTenant, "A", null);
+        service.create(owner, ownerTenant, "B", null);
+        service.create(other, otherTenant, "别人的", null);
 
-        assertThat(service.list(owner)).hasSize(2);
-        assertThat(service.list(owner).stream().map(ProjectSummaryView::name)).containsExactlyInAnyOrder("A", "B");
+        assertThat(service.list(ownerTenant)).hasSize(2);
+        assertThat(service.list(ownerTenant).stream().map(ProjectSummaryView::name)).containsExactlyInAnyOrder("A", "B");
     }
 
     @Test
-    void getOfSomebodyElseProjectIsNotFound() {
-        ProjectDetailView created = service.create(owner, "A", null);
+    void getOfAnotherTenantProjectIsNotFound() {
+        ProjectDetailView created = service.create(owner, ownerTenant, "A", null);
 
-        assertThatThrownBy(() -> service.get(other, UUID.fromString(created.id())))
+        assertThatThrownBy(() -> service.get(otherTenant, UUID.fromString(created.id())))
                 .isInstanceOf(ProjectException.class)
                 .extracting("errorCode")
                 .isEqualTo(ErrorCodes.PROJECT_NOT_FOUND);
@@ -67,54 +71,54 @@ class ProjectServiceTest {
 
     @Test
     void updateBumpsTheVersionAndKeepsTheUntouchedFields() {
-        ProjectDetailView created = service.create(owner, "A", null);
+        ProjectDetailView created = service.create(owner, ownerTenant, "A", null);
         UUID projectId = UUID.fromString(created.id());
 
-        ProjectDetailView updated = service.update(owner, projectId, "改名", null);
+        ProjectDetailView updated = service.update(ownerTenant, projectId, "改名", null);
 
         assertThat(updated.name()).isEqualTo("改名");
         assertThat(updated.version()).isEqualTo(2);
     }
 
     @Test
-    void updateOfSomebodyElseProjectIsNotFound() {
-        ProjectDetailView created = service.create(owner, "A", null);
+    void updateOfAnotherTenantProjectIsNotFound() {
+        ProjectDetailView created = service.create(owner, ownerTenant, "A", null);
 
-        assertThatThrownBy(() -> service.update(other, UUID.fromString(created.id()), "抢", null))
+        assertThatThrownBy(() -> service.update(otherTenant, UUID.fromString(created.id()), "抢", null))
                 .isInstanceOf(ProjectException.class)
                 .extracting("errorCode")
                 .isEqualTo(ErrorCodes.PROJECT_NOT_FOUND);
     }
 
     @Test
-    void deleteOfSomebodyElseProjectIsNotFound() {
-        ProjectDetailView created = service.create(owner, "A", null);
+    void deleteOfAnotherTenantProjectIsNotFound() {
+        ProjectDetailView created = service.create(owner, ownerTenant, "A", null);
 
-        assertThatThrownBy(() -> service.delete(other, UUID.fromString(created.id())))
+        assertThatThrownBy(() -> service.delete(otherTenant, UUID.fromString(created.id())))
                 .isInstanceOf(ProjectException.class)
                 .extracting("errorCode")
                 .isEqualTo(ErrorCodes.PROJECT_NOT_FOUND);
-        assertThat(service.list(owner)).hasSize(1);
+        assertThat(service.list(ownerTenant)).hasSize(1);
     }
 
     @Test
     void deleteRemovesTheProject() {
-        ProjectDetailView created = service.create(owner, "A", null);
+        ProjectDetailView created = service.create(owner, ownerTenant, "A", null);
 
-        DeleteProjectView deleted = service.delete(owner, UUID.fromString(created.id()));
+        DeleteProjectView deleted = service.delete(ownerTenant, UUID.fromString(created.id()));
 
         assertThat(deleted.deleted()).isTrue();
         assertThat(deleted.id()).isEqualTo(created.id());
-        assertThat(service.list(owner)).isEmpty();
+        assertThat(service.list(ownerTenant)).isEmpty();
     }
 
     @Test
     void blankOrTooLongNameIsRejected() {
-        assertThatThrownBy(() -> service.create(owner, "   ", null))
+        assertThatThrownBy(() -> service.create(owner, ownerTenant, "   ", null))
                 .isInstanceOf(ProjectException.class)
                 .extracting("errorCode")
                 .isEqualTo(ErrorCodes.VALIDATION_ERROR);
-        assertThatThrownBy(() -> service.create(owner, "x".repeat(129), null))
+        assertThatThrownBy(() -> service.create(owner, ownerTenant, "x".repeat(129), null))
                 .isInstanceOf(ProjectException.class)
                 .extracting("errorCode")
                 .isEqualTo(ErrorCodes.VALIDATION_ERROR);
@@ -122,7 +126,7 @@ class ProjectServiceTest {
 
     @Test
     void nonObjectCanvasDataIsRejected() {
-        assertThatThrownBy(() -> service.create(owner, "A", mapper.createArrayNode()))
+        assertThatThrownBy(() -> service.create(owner, ownerTenant, "A", mapper.createArrayNode()))
                 .isInstanceOf(ProjectException.class)
                 .extracting("errorCode")
                 .isEqualTo(ErrorCodes.VALIDATION_ERROR);
@@ -130,9 +134,9 @@ class ProjectServiceTest {
 
     @Test
     void updateWithoutAnyFieldIsRejected() {
-        ProjectDetailView created = service.create(owner, "A", null);
+        ProjectDetailView created = service.create(owner, ownerTenant, "A", null);
 
-        assertThatThrownBy(() -> service.update(owner, UUID.fromString(created.id()), null, null))
+        assertThatThrownBy(() -> service.update(ownerTenant, UUID.fromString(created.id()), null, null))
                 .isInstanceOf(ProjectException.class)
                 .extracting("errorCode")
                 .isEqualTo(ErrorCodes.VALIDATION_ERROR);

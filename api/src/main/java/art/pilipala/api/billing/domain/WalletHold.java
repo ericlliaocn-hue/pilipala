@@ -10,7 +10,8 @@ import java.util.UUID;
  * 终态只进一次：frozen → confirmed（实扣）或 frozen → released（解冻）。
  *
  * @param id         主键
- * @param userId     冻结人
+ * @param tenantId   被冻结的钱包所属租户
+ * @param userId     操作者（当前登录用户）
  * @param jobId      关联任务；未绑定时为 null
  * @param amount     冻结额，恒为正整数
  * @param status     冻结单状态
@@ -19,6 +20,7 @@ import java.util.UUID;
  */
 public record WalletHold(
         UUID id,
+        UUID tenantId,
         UUID userId,
         UUID jobId,
         long amount,

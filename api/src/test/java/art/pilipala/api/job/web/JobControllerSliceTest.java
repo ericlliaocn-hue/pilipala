@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.UUID;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import art.pilipala.api.auth.application.CurrentTenant;
 import art.pilipala.api.auth.infra.AuthSessionService;
 import art.pilipala.api.auth.infra.SaTokenConfig;
 import art.pilipala.api.job.application.CancelJob;
@@ -48,6 +49,7 @@ import org.springframework.test.web.servlet.MockMvc;
 class JobControllerSliceTest {
 
     private static final UUID USER = UUID.randomUUID();
+    private static final UUID TENANT = UUID.randomUUID();
     private static final UUID JOB_ID = UUID.randomUUID();
     private static final UUID HOLD_ID = UUID.randomUUID();
 
@@ -56,6 +58,9 @@ class JobControllerSliceTest {
 
     @MockitoBean
     private AuthSessionService sessions;
+
+    @MockitoBean
+    private CurrentTenant currentTenant;
 
     @MockitoBean
     private SubmitJob submitJob;
@@ -75,7 +80,8 @@ class JobControllerSliceTest {
     @Test
     void submitReturnsTheQueuedJob() throws Exception {
         when(sessions.currentUserId()).thenReturn(USER.toString());
-        when(submitJob.submit(eq(USER), eq("k1"), eq("image.generate"), eq("demo"), any(JsonNode.class), isNull()))
+        when(submitJob.submit(eq(USER), isNull(), eq("k1"), eq("image.generate"), eq("demo"), any(JsonNode.class),
+                isNull()))
                 .thenReturn(new SubmitJobView(JOB_ID.toString(), "queued", HOLD_ID.toString()));
 
         mockMvc.perform(post("/api/v1/jobs/submit")
@@ -93,7 +99,7 @@ class JobControllerSliceTest {
     @Test
     void submitWithAnInsufficientWalletUsesTheEnvelope() throws Exception {
         when(sessions.currentUserId()).thenReturn(USER.toString());
-        when(submitJob.submit(eq(USER), eq("k1"), any(), any(), any(JsonNode.class), any()))
+        when(submitJob.submit(eq(USER), isNull(), eq("k1"), any(), any(), any(JsonNode.class), any()))
                 .thenThrow(JobException.walletInsufficient());
 
         mockMvc.perform(post("/api/v1/jobs/submit")
@@ -110,7 +116,7 @@ class JobControllerSliceTest {
     @Test
     void submitFailureUsesTheEnvelopeWithAStableCode() throws Exception {
         when(sessions.currentUserId()).thenReturn(USER.toString());
-        when(submitJob.submit(eq(USER), eq("k1"), any(), any(), any(JsonNode.class), any()))
+        when(submitJob.submit(eq(USER), isNull(), eq("k1"), any(), any(), any(JsonNode.class), any()))
                 .thenThrow(JobException.idempotencyConflict());
 
         mockMvc.perform(post("/api/v1/jobs/submit")
@@ -125,9 +131,10 @@ class JobControllerSliceTest {
     }
 
     @Test
-    void queryOfSomebodyElseJobIsNotFound() throws Exception {
+    void queryOfAnotherTenantJobIsNotFound() throws Exception {
         when(sessions.currentUserId()).thenReturn(USER.toString());
-        when(getJob.get(eq(USER), eq(JOB_ID), any())).thenThrow(JobException.notFound());
+        when(currentTenant.require(USER)).thenReturn(TENANT);
+        when(getJob.get(eq(TENANT), eq(JOB_ID), any())).thenThrow(JobException.notFound());
 
         mockMvc.perform(get("/api/v1/jobs/" + JOB_ID))
                 .andExpect(status().isOk())
@@ -139,7 +146,8 @@ class JobControllerSliceTest {
     @Test
     void queryReturnsTheJobState() throws Exception {
         when(sessions.currentUserId()).thenReturn(USER.toString());
-        when(getJob.get(eq(USER), eq(JOB_ID), any()))
+        when(currentTenant.require(USER)).thenReturn(TENANT);
+        when(getJob.get(eq(TENANT), eq(JOB_ID), any()))
                 .thenReturn(new JobView(JOB_ID.toString(), "queued", 1, 3, null, null, "2026-10-24T00:00:00Z"));
 
         mockMvc.perform(get("/api/v1/jobs/" + JOB_ID))
@@ -154,7 +162,8 @@ class JobControllerSliceTest {
     @Test
     void resultExposesObjectKeysWithASignedUrl() throws Exception {
         when(sessions.currentUserId()).thenReturn(USER.toString());
-        when(getJobResult.result(eq(USER), eq(JOB_ID), any()))
+        when(currentTenant.require(USER)).thenReturn(TENANT);
+        when(getJobResult.result(eq(TENANT), eq(JOB_ID), any()))
                 .thenReturn(new JobResultView(JOB_ID.toString(), "succeeded",
                         List.of(new JobOutput("image", "img/a.png",
                                 "http://127.0.0.1:18080/pilipala-dev/img/a.png?X-Tos-Algorithm=TOS4-HMAC-SHA256&X-Tos-Signature=abc")),
@@ -172,7 +181,8 @@ class JobControllerSliceTest {
     @Test
     void cancelReturnsTheCurrentState() throws Exception {
         when(sessions.currentUserId()).thenReturn(USER.toString());
-        when(cancelJob.cancel(eq(USER), eq(JOB_ID), any()))
+        when(currentTenant.require(USER)).thenReturn(TENANT);
+        when(cancelJob.cancel(eq(TENANT), eq(JOB_ID), any()))
                 .thenReturn(new JobView(JOB_ID.toString(), "cancelled", 0, 3, "JOB_CANCELLED", "任务已取消。",
                         "2026-10-24T00:00:00Z"));
 
@@ -186,6 +196,7 @@ class JobControllerSliceTest {
     @Test
     void malformedJobIdIsNotFound() throws Exception {
         when(sessions.currentUserId()).thenReturn(USER.toString());
+        when(currentTenant.require(USER)).thenReturn(TENANT);
 
         mockMvc.perform(get("/api/v1/jobs/not-a-uuid"))
                 .andExpect(status().isOk())
@@ -197,7 +208,8 @@ class JobControllerSliceTest {
     @Test
     void theMessageFollowsTheAcceptLanguageHeader() throws Exception {
         when(sessions.currentUserId()).thenReturn(USER.toString());
-        when(getJob.get(eq(USER), eq(JOB_ID), any())).thenThrow(JobException.notFound());
+        when(currentTenant.require(USER)).thenReturn(TENANT);
+        when(getJob.get(eq(TENANT), eq(JOB_ID), any())).thenThrow(JobException.notFound());
 
         mockMvc.perform(get("/api/v1/jobs/" + JOB_ID).header("Accept-Language", "en-US,en;q=0.9"))
                 .andExpect(status().isOk())
@@ -210,7 +222,8 @@ class JobControllerSliceTest {
     @Test
     void anUncaughtRuntimeExceptionIsSanitized() throws Exception {
         when(sessions.currentUserId()).thenReturn(USER.toString());
-        when(getJob.get(eq(USER), eq(JOB_ID), any()))
+        when(currentTenant.require(USER)).thenReturn(TENANT);
+        when(getJob.get(eq(TENANT), eq(JOB_ID), any()))
                 .thenThrow(new IllegalStateException("relation \"users\" does not exist"));
 
         mockMvc.perform(get("/api/v1/jobs/" + JOB_ID))

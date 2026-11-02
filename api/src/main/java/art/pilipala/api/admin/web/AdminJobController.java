@@ -45,14 +45,14 @@ public class AdminJobController {
     public ApiResponse<List<AdminJobView>> list(@RequestParam(value = "status", required = false) String status,
                                                 @RequestParam(value = "user_id", required = false) String userId,
                                                 @RequestParam(value = "limit", defaultValue = "50") int limit) {
-        guard.requireAdmin();
-        return ApiResponse.ok(jobs.list(status, userIdOf(userId), limit));
+        guard.require("job.read");
+        return ApiResponse.ok(jobs.list(status, userIdOf(userId), limit, guard.has("job.provider_raw")));
     }
 
     /** 把 dead / failed 的任务重新入队。 */
     @PostMapping("/{jobId}/retry")
     public ApiResponse<AdminJobView> retry(@PathVariable String jobId) {
-        guard.requireAdmin();
+        guard.require("job.retry");
         return ApiResponse.ok(retryJob.retry(jobIdOf(jobId)));
     }
 

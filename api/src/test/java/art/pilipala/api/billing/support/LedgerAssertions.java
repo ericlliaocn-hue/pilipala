@@ -24,16 +24,19 @@ public final class LedgerAssertions {
     private LedgerAssertions() {
     }
 
-    public static void assertInvariants(InMemoryWalletStore store, UUID userId) {
-        Wallet wallet = store.walletOf(userId);
-        List<WalletLedgerEntry> entries = store.findLedgerByUserId(userId);
+    /** 余额与流水都按租户的钱包核对；流水按 {@code wallet_id} 归集，不看操作者。 */
+    public static void assertInvariants(InMemoryWalletStore store, UUID tenantId) {
+        Wallet wallet = store.walletOf(tenantId);
+        List<WalletLedgerEntry> entries = store.allLedger().stream()
+                .filter(entry -> entry.walletId().equals(wallet.id()))
+                .toList();
 
         long topup = sum(entries, WalletLedgerType.TOPUP);
         long freeze = sum(entries, WalletLedgerType.FREEZE);
         long confirm = sum(entries, WalletLedgerType.CONFIRM);
         long release = sum(entries, WalletLedgerType.RELEASE);
         long frozenHolds = store.allHolds().stream()
-                .filter(hold -> hold.userId().equals(userId) && hold.status() == WalletHoldStatus.FROZEN)
+                .filter(hold -> hold.tenantId().equals(tenantId) && hold.status() == WalletHoldStatus.FROZEN)
                 .mapToLong(WalletHold::amount)
                 .sum();
 

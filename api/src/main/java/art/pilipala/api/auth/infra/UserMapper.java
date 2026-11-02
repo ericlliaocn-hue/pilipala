@@ -12,7 +12,7 @@ import art.pilipala.api.auth.domain.User;
 @Mapper
 public interface UserMapper {
 
-    String COLS = "id, username, phone, email, password_hash, locale, created_at, updated_at";
+    String COLS = "id, username, phone, email, password_hash, locale, status, created_at, updated_at";
 
     @Select("SELECT " + COLS + " FROM users WHERE username = #{username}")
     User findByUsername(@Param("username") String username);

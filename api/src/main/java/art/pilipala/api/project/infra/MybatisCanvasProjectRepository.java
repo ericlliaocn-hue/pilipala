@@ -18,27 +18,27 @@ public class MybatisCanvasProjectRepository implements CanvasProjectRepository {
     }
 
     @Override
-    public CanvasProject insert(UUID userId, String name, String canvasDataJson) {
-        return mapper.insert(userId, name, canvasDataJson);
+    public CanvasProject insert(UUID tenantId, UUID userId, String name, String canvasDataJson) {
+        return mapper.insert(tenantId, userId, name, canvasDataJson);
     }
 
     @Override
-    public Optional<CanvasProject> findByIdAndUser(UUID projectId, UUID userId) {
-        return Optional.ofNullable(mapper.findByIdAndUser(projectId, userId));
+    public Optional<CanvasProject> findByIdAndTenant(UUID projectId, UUID tenantId) {
+        return Optional.ofNullable(mapper.findByIdAndTenant(projectId, tenantId));
     }
 
     @Override
-    public List<CanvasProject> findByUser(UUID userId, int limit) {
-        return mapper.findByUser(userId, limit);
+    public List<CanvasProject> findByTenant(UUID tenantId, int limit) {
+        return mapper.findByTenant(tenantId, limit);
     }
 
     @Override
-    public Optional<CanvasProject> update(UUID projectId, UUID userId, String name, String canvasDataJson) {
-        return Optional.ofNullable(mapper.update(projectId, userId, name, canvasDataJson));
+    public Optional<CanvasProject> update(UUID projectId, UUID tenantId, String name, String canvasDataJson) {
+        return Optional.ofNullable(mapper.update(projectId, tenantId, name, canvasDataJson));
     }
 
     @Override
-    public boolean delete(UUID projectId, UUID userId) {
-        return mapper.delete(projectId, userId) > 0;
+    public boolean delete(UUID projectId, UUID tenantId) {
+        return mapper.delete(projectId, tenantId) > 0;
     }
 }
