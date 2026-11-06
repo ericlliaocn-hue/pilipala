@@ -4,11 +4,13 @@
 
 ## 执行流程
 
-1. Claude 为该步写 brief（`feature-briefs/`，从 `main` 拉分支）。
-2. DeepSeek V4.1 Flash（经 OpenCode / TokenBridge）在独立 worktree 按 brief 实现；备用 MiniMax M3.1-Flash · thinking。
-3. Claude 验收：读 diff、跑 api / worker / web / admin 测试与构建、必要时起本地服务并真实调用上游。
-4. 通过后合并进 `main` 并推送；不通过则带具体问题返工。
-5. 更新本页状态，进入下一步。
+角色（2026-11-06 起）：编排 GPT-6.1 Terra（Codex，reasoningEffort high）；实现 DeepSeek V4.1 Flash（OpenCode `tokenbridge/deepseek-v4-1-flash-261017`，variant high；备用 MiniMax `m:minimax:MiniMax-M3.1-Flash:v:thinking`）；验收 Grok 4.7（Cursor `grok-4.7`，仅用于验收，不写代码）。0.1–1.6 由 Claude 编排。
+
+1. 编排者为该步写 brief（`feature-briefs/`，从 `main` 拉分支），提交并推送。
+2. DeepSeek 在独立 worktree 按 brief 实现，只提交不推送。
+3. Grok 4.7 验收：对照 brief 读 diff、跑 api / worker / web / admin 测试与构建、必要时起本地服务并真实调用上游，给出通过 / 返工清单。
+4. 编排者复核验收结论；通过后合并进 `main` 并推送；不通过则带具体问题返工。小问题编排者直接修。
+5. 更新本页状态；**纠偏自检**：对照 VISION、MILESTONES 硬约束、本页「停下来问人」清单和用户已否决事项（不做水印 / 元数据注入 / ffmpeg 等输出后处理）检查本步与下一步是否跑偏，再进入下一步。
 
 遇到以下情况必须停下来问人：超时 / 重试 / 大小上限等边界值、定价与积分、需要开通的 Key 或账号、资质备案、生产部署。
 
