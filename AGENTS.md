@@ -9,6 +9,7 @@
 - 入口：[docs/engineering/README.md](docs/engineering/README.md)
 - 大改动（新表、新 API、新进程、改任务/计费/品牌/错误合同、改栈）**必须先写** [feature brief](docs/engineering/feature-briefs/_TEMPLATE.md)，再实现、再开 PR；禁止直接开写或只凭聊天记录扩范围。
 - PR 对照 brief 验收，并遵守 [CONTRIBUTING.md](docs/engineering/CONTRIBUTING.md) 清单。
+- 竞争路线（M5–M8，AI 短剧 / 漫剧方向）按 [ROADMAP.md](docs/engineering/ROADMAP.md) 逐步执行：Claude 写 brief 并验收，MiniMax 实现；用户已授权该流程中验收通过的步骤直接合并 `main` 并推送，验收时可跑测试、构建、本地服务与真实上游调用。
 - 硬约束：模型网关走受控网关层（Anytoken 存量 + fork NewAPI 独立视频网关，见 ADR 0008/0009）；网关不得拥有用户/额度/定价、不做双账本；Worker 保持瘦（MQ 只有 `job_id`）；C 端错误友好且带稳定 `error_code`；Admin 在 C 端最小闭环之后，且只做运维/配置。
 - **不要**把工程文档写进 `docs/content/`，也 **不要** 掏空或重写 Fumadocs 公开文档站（`docs/app/`、`docs/Dockerfile` 等），除非任务明确要求。
 
@@ -33,7 +34,7 @@
 
 - 前端使用 Vite、React、React Router、TypeScript、Ant Design、Tailwind、Zustand。
 - 编写 Ant Design 相关代码时，参考 https://ant.design/llms-full.txt 理解组件 API、示例和设计规范，并优先结合项目当前 antd 版本与既有写法。
-- 外部服务请求统一放在 `web/src/services/api/`，由浏览器前端直连，不假设存在项目后端。
+- 外部服务请求统一放在 `web/src/services/api/`；托管模式只请求 pilipala API（`pilipala-*.ts`），浏览器直连供应商仅保留为本地调试路径。
 - 全局或跨页面状态优先放在 `web/src/stores/`。
 - 已经放在全局 store 或全局 hook 中的状态/动作，组件需要时直接使用对应 store/hook，不要为了“纯组件”层层透传 props；避免一个组件传递过多参数。
 - 全局组件、全局常量、全局配置等全局性质的内容不要作为 props 或参数层层传递；哪里需要就在哪里直接从对应全局入口获取。

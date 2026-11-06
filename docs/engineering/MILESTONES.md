@@ -1,8 +1,8 @@
-# 里程碑 M0–M4
+# 里程碑 M0–M8
 
 本页是已对齐的阶段目标与退出标准。工作包拆分见 [DEVELOPMENT.md](./DEVELOPMENT.md)。未写进退出标准的能力，默认不算该里程碑完成。
 
-当前仓库已包含 `web/`、`api/`、`worker/`、admin 与 WP0–WP20 的实现；本页保留 M0–M4 的阶段口径，WP12–WP21 的后续扩展见 [feature briefs](./feature-briefs/README.md)。
+当前仓库已包含 `web/`、`api/`、`worker/`、`admin/` 与 WP0–WP21、admin-console 的实现，M0–M4 已基本完成。M5–M8 是面向 AI 短剧 / 漫剧的竞争路线（见 [VISION.md](./VISION.md)），逐步进度见 [ROADMAP.md](./ROADMAP.md)。
 
 ## 总览
 
@@ -12,7 +12,11 @@
 | M1 | 平台骨架 | WP1–WP5 | 登录后能提交任务；worker 只处理 `job_id` |
 | M2 | 付费出图闭环 | WP6–WP9 | 预付费生图成功扣费、失败退冻；错误友好 |
 | M3 | C 端最小产品 | WP10 | 画布/素材/生成记录能跟账号走 |
-| M4 | 运维面 | WP11 | 运营能配置与排障，而不是多一个创作产品 |
+| M4 | 运维面 | WP11、admin-console | 运营能配置与排障，而不是多一个创作产品 |
+| M5 | 可合规运营 | P0（ROADMAP） | 生成内容带 AI 标识、违规内容被拦截、发布走 CI |
+| M6 | 短剧创作核心 | P1（ROADMAP） | 剧本、角色、分镜、镜头、配音在画布上成链；模型覆盖短剧所需 |
+| M7 | 托管 Agent 与模板 | P2（ROADMAP） | 一段剧本自动排出分镜与镜头；工作流可存模板、克隆同款 |
+| M8 | 生态 | P3（ROADMAP） | 模板广场、小团队协作、开放 API 与 Agent Skill |
 
 ## M0 — 身份与工程纪律
 
@@ -46,7 +50,7 @@
 - Postgres / Redis 落地；job / job_step / outbox / idempotency 表存在，字段级见 [data-model](./data-model/)（WP2 已锁定）。
 - RabbitMQ 作为第一期队列；消息体只有 `job_id`。
 - Worker 按 [ADR 0004](./adr/0004-thin-worker-no-god-classes.md) 保持瘦：不拉画布、不编排创作、不持有钱包。
-- 只通过 Anytoken 访问模型；禁止 NewAPI fork 与双账本。
+- 只通过受控网关访问模型（当时为 Anytoken；后经 ADR 0008/0009 增加 fork NewAPI 视频网关）；禁止双账本。
 
 **退出标准**
 
@@ -132,11 +136,65 @@
 - 不做运营自己的无限画布。
 - 不做面向 C 的 CMS/社区。
 
+## M5 — 可合规运营
+
+**目标**：现有出图/出视频链路可以对公众收费运营。
+
+**必须完成**
+
+- 生成图片 / 视频带显式 AI 标识与隐式元数据标识（《人工智能生成合成内容标识办法》）。
+- 提示词提交前审核、生成结果入库前审核；拦截有稳定 `error_code`，且不扣费。
+- 发布走 CI：测试 + 构建 + 产物，替代手工 tgz；web 类型检查归零。
+
+**退出标准**
+
+- 任意一张托管生成的图片 / 视频能看到标识并读到元数据标识。
+- 违规提示词被拦截，钱包无冻结残留；违规结果不进入用户可见列表。
+- `main` 推 tag 能产出可部署产物。
+
+**明确不做**：备案、商户号等线下资质（由运营方办理，工程只提供材料所需的技术说明）。
+
+## M6 — 短剧创作核心
+
+**目标**：一个创作者在画布上手工完成一集短剧的主要环节。
+
+**必须完成**
+
+- 模型覆盖：图片至少 2 家、视频至少 2 家（含 Seedance）、TTS 与配乐各 1 家，全部经网关。
+- 剧本 / 分镜节点；9 / 25 宫格分镜批量出图。
+- 角色 / 主体一致性：角色卡、三视图、参考注入。
+- 首尾帧、画布内视频裁剪与拼接。
+- 节点打组、保存、一键重跑。
+
+**退出标准**
+
+- 从一段剧本出发，手工操作即可在画布上产出带配音的多镜头成片并导出。
+
+## M7 — 托管 Agent 与模板
+
+**目标**：把 M6 的手工流程自动化、可复用。
+
+**必须完成**
+
+- 托管 Agent：剧本 → 角色 / 分镜 → 镜头节点自动排上画布；每步可人工接管，费用先报价后冻结。
+- 工作流模板：保存、套用、「克隆同款」替换素材。
+
+**退出标准**
+
+- 一段剧本在一次确认后自动生成完整分镜与镜头，失败步骤可单独重跑且不重复扣费。
+
+## M8 — 生态
+
+**目标**：增长与留存。
+
+- 模板 / 作品广场；小团队协作（组织租户、成员、评论、版本）；开放 API 与给外部 Agent 的 Skill 包。
+- 进入 M8 前需重新评估范围并另写 brief。
+
 ## 跨里程碑不变式
 
 这些条件从 M1 起就生效，后续里程碑不能破坏：
 
-- 模型请求只经 Anytoken，见 [ADR 0001](./adr/0001-anytoken-not-newapi-fork.md)。
+- 模型请求只经受控网关（Anytoken 存量 + fork NewAPI 视频网关），见 [ADR 0001](./adr/0001-anytoken-not-newapi-fork.md)、[ADR 0008](./adr/0008-gateway-layer-video-multi-channel.md)、[ADR 0009](./adr/0009-newapi-fork-video-gateway.md)；网关不拥有用户、额度与定价。
 - 业务 API 是 Java 21 + Spring Boot 3，见 [ADR 0002](./adr/0002-java-spring-business-api.md)。
 - 队列实现可换，job 模型不绑死 RabbitMQ，见 [ADR 0003](./adr/0003-rabbitmq-first-queue-agnostic-jobs.md)。
 - Worker 禁止变胖，见 [ADR 0004](./adr/0004-thin-worker-no-god-classes.md)。

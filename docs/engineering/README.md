@@ -16,7 +16,8 @@
 | 文档 | 用途 |
 | --- | --- |
 | [VISION.md](./VISION.md) | 产品定位、竞品、非目标 |
-| [MILESTONES.md](./MILESTONES.md) | M0–M4 目标与退出标准 |
+| [MILESTONES.md](./MILESTONES.md) | M0–M8 目标与退出标准 |
+| [ROADMAP.md](./ROADMAP.md) | M5–M8 逐步执行清单与进度 |
 | [DEVELOPMENT.md](./DEVELOPMENT.md) | WP0–WP21 详细计划与协作流程 |
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | 进程、分层、网关 hop、时序 |
 | [TECH_STACK.md](./TECH_STACK.md) | 第一阶段冻结技术栈 |
