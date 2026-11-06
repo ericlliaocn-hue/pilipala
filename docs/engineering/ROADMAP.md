@@ -18,7 +18,7 @@
 | --- | --- | --- | --- | --- |
 | 0.1 | — | 理顺分支：wp21 + admin-console 快进进 `main`，newapi 分支确认已推送，关闭过时 PR #17 | Claude | ✅ 完成 |
 | 0.2 | — | 重写 VISION / MILESTONES，新增本页 | Claude | ✅ 完成 |
-| 0.3 | M5 | 生成图片 / 视频的 AI 显式标识 + 隐式元数据标识 | MiniMax | 待开始 |
+| 0.3 | M5 | ~~生成内容 AI 标识~~：产品决定不做，生成结果原样返回（不加水印、不写元数据、不引入 ffmpeg） | — | ❌ 取消 |
 | 0.4 | M5 | 提示词与生成结果内容审核（需开通审核服务账号） | MiniMax | 待开始 |
 | 0.5 | M5 | CI 发布替代手工 tgz；修 web 类型检查 | MiniMax | 待开始 |
 | 1.1 | M6 | 网关扩模型：Seedream / 可灵 / Wan / TTS / 配乐（需渠道 Key） | MiniMax | 待开始 |
