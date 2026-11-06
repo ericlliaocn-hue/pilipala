@@ -1180,10 +1180,11 @@ function InfiniteCanvasPage() {
     );
 
     const insertTemplate = useCallback(
-        (templateId: string) => {
+        async (templateId: string) => {
             const template = useCanvasTemplateStore.getState().templates.find((item) => item.id === templateId);
             if (!template) return;
-            insertWorkflowSnapshot(template, "");
+            // 模板里存的 blob: 地址在刷新后失效，插入前按 storageKey 重新解析（与打开项目一致）。
+            insertWorkflowSnapshot({ nodes: await hydrateCanvasImages(template.nodes), connections: template.connections }, "");
             message.success(t("canvas.template.inserted"));
         },
         [insertWorkflowSnapshot, message, t],
@@ -3045,7 +3046,8 @@ function InfiniteCanvasPage() {
                         if (!latest) continue;
                         await handleRetryNode(latest);
                     }
-                    message.success(t("canvas.template.rerunDone"));
+                    // handleRetryNode 不返回结果（未登录、缺配置、失败都会自行提示），只有全部成功才报完成。
+                    if (targets.every((target) => nodesRef.current.find((item) => item.id === target.id)?.metadata?.status === NODE_STATUS_SUCCESS)) message.success(t("canvas.template.rerunDone"));
                 },
             });
         },

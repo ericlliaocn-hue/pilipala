@@ -98,6 +98,8 @@ export const useAssetStore = create<AssetStore>()(
             cleanupImages: (extra) => {
                 window.setTimeout(async () => {
                     const { useCanvasStore } = await import("@/stores/canvas/use-canvas-store");
+                    // 模板尚未从本地存储恢复时不清理，避免把模板引用的图片当成未使用删掉。
+                    if (!useCanvasTemplateStore.persist.hasHydrated()) return;
                     const templates = useCanvasTemplateStore.getState().templates;
                     await cleanupUnusedImages({ assets: get().assets, projects: useCanvasStore.getState().projects, extra, templates });
                     await cleanupUnusedMedia({ assets: get().assets, projects: useCanvasStore.getState().projects, extra, templates });
