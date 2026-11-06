@@ -20,7 +20,7 @@
 | 0.2 | — | 重写 VISION / MILESTONES，新增本页 | Claude | ✅ 完成 |
 | 0.3 | M5 | ~~生成内容 AI 标识~~：产品决定不做，生成结果原样返回（不加水印、不写元数据、不引入 ffmpeg） | — | ❌ 取消 |
 | 0.4 | M5 | 提示词与生成结果内容审核（需开通审核服务账号） | MiniMax | 待开始 |
-| 0.5 | M5 | CI 校验流水线 + 修 web 类型检查（[brief](./feature-briefs/2026-11-06-ci-and-typecheck.md)）；发布自动化待确认生产部署方式后另开 | MiniMax | 实现中 |
+| 0.5 | M5 | CI 校验流水线 + 修 web 类型检查（[brief](./feature-briefs/2026-11-06-ci-and-typecheck.md)）；发布自动化待确认生产部署方式后另开 | Claude（MiniMax 接入故障） | ✅ 完成 |
 | 1.1 | M6 | 网关扩模型：Seedream / 可灵 / Wan / TTS / 配乐（需渠道 Key） | MiniMax | 待开始 |
 | 1.2 | M6 | 画布剧本 / 分镜节点 | MiniMax | 待开始 |
 | 1.3 | M6 | 9 / 25 宫格分镜批量出图 | MiniMax | 待开始 |
@@ -33,6 +33,6 @@
 
 ## 已知遗留
 
-- web `bun run typecheck` 有 4 处 antd `styles` 类型错误（`auth-modal.tsx`、`auth-session-menus.tsx`、`model-script-editor.tsx`），构建不受影响；在 0.5 修复。
+- `Dockerfile` 用 `oven/bun:1.3.13` 且不带 `--frozen-lockfile`：bun 1.3 读不了 `web/bun.lock`（v2），会忽略锁文件重新解析依赖（本地实测解析出 antd 6.6.7 而非锁定的 6.4.2）。改发布流程时一并升级到 bun 1.4.x 并加 `--frozen-lockfile`。
 - worker 仍保留 Anytoken 直连视频轮询路径（`AnytokenGatewayAdapter`，2s × 90 次上限）；已上架 Seedance 产品走 NewAPI，不经过该路径。后续确认无用后清理。
 - 公开文档 `docs/content/docs/overview/features.mdx` 仍按上游「浏览器直连」口径描述，需在合适步骤按托管产品改写。

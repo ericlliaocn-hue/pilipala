@@ -145,7 +145,7 @@ export function AuthModal() {
             destroyOnHidden
             styles={{
                 mask: { backgroundColor: "rgba(0,0,0,0.88)" },
-                content: { background: "transparent", boxShadow: "none", padding: 0, maxWidth: "calc(100vw - 2rem)" },
+                container: { background: "transparent", boxShadow: "none", padding: 0, maxWidth: "calc(100vw - 2rem)" },
                 body: { padding: 0 },
             }}
         >

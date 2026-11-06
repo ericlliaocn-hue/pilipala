@@ -2,6 +2,7 @@
 
 ## Unreleased
 
++ [修复] 登录弹层、积分/账户浮层与模型脚本全屏弹窗的透明/全屏样式此前因 antd 6 语义键写错未生效，现已生效；新增 main/PR 自动校验流水线。
 + [新增] M4 独立管理后台：admin.pilipala.art 独立控制台，钱包归属改为租户，并引入平台权限（owner / support / finance / operator）与租户角色的分级授权。
 + [修复] WP21：托管视频默认使用产品 SKU，旧 `seedance2` 自动回落；未登录先登录，C 端隐藏 BYOK 渠道配置，只有本地直连缺 Key 才打开配置。
 + [新增] WP21：Seedance 2 720p 视频三档上架——稳定 5000 / 高质 7000 / 旗舰 9000 credits，分别走 NewAPI c4/c7/c8 真实通道。

@@ -3,7 +3,7 @@
 - 日期：2026-11-06
 - 作者：pilipala engineering（Claude）
 - 对应 WP / 里程碑：M5 / ROADMAP 0.5
-- 状态：已确认
+- 状态：已验收
 
 ## 背景
 
@@ -41,7 +41,7 @@
 - 不设置 `timeout-minutes`、不加重试（沿用 GitHub 默认）。
 - 三个并行 job：
   1. `java`：`ubuntu-latest`；`actions/checkout@v4`；`actions/setup-java@v4`（`distribution: temurin`，`java-version: '21'`，`cache: maven`）；运行 `./mvnw -B test`（根目录聚合 api + worker）。
-  2. `web`：`actions/checkout@v4`；`oven-sh/setup-bun@v2`（`bun-version: 1.3.11`）；在 `web/` 下依次 `bun install --frozen-lockfile`、`bun run typecheck`、`bun test`、`bun run build`。
+  2. `web`：`actions/checkout@v4`；`oven-sh/setup-bun@v2`（`bun-version: 1.4.4`；`web/bun.lock` 是 lockfileVersion 2，bun 1.3.x 无法解析，frozen 安装会失败）；在 `web/` 下依次 `bun install --frozen-lockfile`、`bun run typecheck`、`bun test`、`bun run build`。
   3. `admin`：同上 setup；在 `admin/` 下 `bun install --frozen-lockfile`、`bun test`、`bun run build`。
 - 若 `web` 构建依赖 Node（例如 `tsx` 脚本），加 `actions/setup-node@v4`（`node-version: '22'`）；不需要就不加。
 - 不写任何密钥、不引用 `secrets.*`。

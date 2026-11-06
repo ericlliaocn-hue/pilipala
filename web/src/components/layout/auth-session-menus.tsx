@@ -15,7 +15,7 @@ export function shouldShowCreditsPill(user: PilipalaUser | null | undefined): bo
     return Boolean(user);
 }
 
-const popoverStyles = { body: { padding: 0, background: "transparent", boxShadow: "none" } };
+const popoverStyles = { container: { padding: 0, background: "transparent", boxShadow: "none" } };
 
 export function WalletBalancePopover({
     children,
