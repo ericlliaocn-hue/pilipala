@@ -22,7 +22,9 @@ jobs:
       - run: ./mvnw -B test
 
   web:
-    runs-on: ubuntu-latest
+    # web/bun.lock 只记录了 darwin-arm64 的原生包（rollup/esbuild/tailwind oxide），
+    # Linux 上 frozen 安装拿不到原生二进制，构建失败；先跑在 macOS arm64 上，锁文件补全后再改回 ubuntu。
+    runs-on: macos-latest
     defaults:
       run:
         working-directory: web

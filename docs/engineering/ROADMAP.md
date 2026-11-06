@@ -34,5 +34,6 @@
 ## 已知遗留
 
 - `Dockerfile` 用 `oven/bun:1.3.13` 且不带 `--frozen-lockfile`：bun 1.3 读不了 `web/bun.lock`（v2），会忽略锁文件重新解析依赖（本地实测解析出 antd 6.6.7 而非锁定的 6.4.2）。改发布流程时一并升级到 bun 1.4.x 并加 `--frozen-lockfile`。
+- `web/bun.lock` 只含 darwin-arm64 的原生可选依赖（缺 rollup / esbuild / tailwind oxide 的 linux、win32 条目；`admin/bun.lock` 是全平台的），Linux 上 frozen 安装后 `vite build` 找不到 `@rollup/rollup-linux-x64-gnu`。CI 的 web job 暂时跑在 `macos-latest`；需要用全平台方式重新生成 `web/bun.lock`（会变更依赖锁，需单独一步验收），之后 web job 和 Docker 构建都能在 Linux 上用 frozen 安装。
 - worker 仍保留 Anytoken 直连视频轮询路径（`AnytokenGatewayAdapter`，2s × 90 次上限）；已上架 Seedance 产品走 NewAPI，不经过该路径。后续确认无用后清理。
 - 公开文档 `docs/content/docs/overview/features.mdx` 仍按上游「浏览器直连」口径描述，需在合适步骤按托管产品改写。
