@@ -5,7 +5,7 @@
 ## 执行流程
 
 1. Claude 为该步写 brief（`feature-briefs/`，从 `main` 拉分支）。
-2. MiniMax（M3.1-Flash）在独立 worktree 按 brief 实现。
+2. DeepSeek V4.1 Flash（经 OpenCode / TokenBridge）在独立 worktree 按 brief 实现；备用 MiniMax M3.1-Flash · thinking。
 3. Claude 验收：读 diff、跑 api / worker / web / admin 测试与构建、必要时起本地服务并真实调用上游。
 4. 通过后合并进 `main` 并推送；不通过则带具体问题返工。
 5. 更新本页状态，进入下一步。
@@ -19,16 +19,16 @@
 | 0.1 | — | 理顺分支：wp21 + admin-console 快进进 `main`，newapi 分支确认已推送，关闭过时 PR #17 | Claude | ✅ 完成 |
 | 0.2 | — | 重写 VISION / MILESTONES，新增本页 | Claude | ✅ 完成 |
 | 0.3 | M5 | ~~生成内容 AI 标识~~：产品决定不做，生成结果原样返回（不加水印、不写元数据、不引入 ffmpeg） | — | ❌ 取消 |
-| 0.4 | M5 | 提示词与生成结果内容审核（需开通审核服务账号） | MiniMax | 待开始 |
+| 0.4 | M5 | 提示词与生成结果内容审核（需开通审核服务账号） | DeepSeek | 待开始 |
 | 0.5 | M5 | CI 校验流水线 + 修 web 类型检查（[brief](./feature-briefs/2026-11-06-ci-and-typecheck.md)）；发布自动化待确认生产部署方式后另开 | Claude（MiniMax 接入故障） | ✅ 完成 |
-| 1.1 | M6 | 网关扩模型：Seedream / 可灵 / Wan / TTS / 配乐（需渠道 Key） | MiniMax | 待开始 |
-| 1.2 | M6 | 画布剧本 / 分镜节点 | MiniMax | 待开始 |
-| 1.3 | M6 | 9 / 25 宫格分镜批量出图 | MiniMax | 待开始 |
-| 1.4 | M6 | 角色 / 主体一致性：角色卡、三视图、参考注入 | MiniMax | 待开始 |
-| 1.5 | M6 | 首尾帧、画布内视频裁剪拼接 | MiniMax | 待开始 |
-| 1.6 | M6 | 节点打组、保存、一键重跑 | MiniMax | 待开始 |
-| 2.1 | M7 | 托管 Agent：剧本 → 分镜 → 镜头自动上画布（分多步） | MiniMax | 待开始 |
-| 2.2 | M7 | 工作流模板与「克隆同款」 | MiniMax | 待开始 |
+| 1.1 | M6 | 网关扩模型：Seedream / 可灵 / Wan / TTS / 配乐（需渠道 Key） | DeepSeek | 待开始 |
+| 1.2 | M6 | 画布剧本 / 分镜节点 | DeepSeek | 待开始 |
+| 1.3 | M6 | 9 / 25 宫格分镜批量出图 | DeepSeek | 待开始 |
+| 1.4 | M6 | 角色 / 主体一致性：角色卡、三视图、参考注入 | DeepSeek | 待开始 |
+| 1.5 | M6 | 首尾帧、画布内视频裁剪拼接 | DeepSeek | 待开始 |
+| 1.6 | M6 | 组存为模板、一键重跑（[brief](./feature-briefs/2026-11-06-canvas-group-template-rerun.md)） | DeepSeek | 实现中 |
+| 2.1 | M7 | 托管 Agent：剧本 → 分镜 → 镜头自动上画布（分多步） | DeepSeek | 待开始 |
+| 2.2 | M7 | 工作流模板与「克隆同款」 | DeepSeek | 待开始 |
 | 3.x | M8 | 模板广场 / 团队协作 / 开放 API 与 Skill（进入前重新拆分） | — | 未拆分 |
 
 ## 已知遗留
