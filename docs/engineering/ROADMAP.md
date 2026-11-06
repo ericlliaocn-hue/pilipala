@@ -26,7 +26,7 @@
 | 1.3 | M6 | 9 / 25 宫格分镜批量出图 | DeepSeek | 待开始 |
 | 1.4 | M6 | 角色 / 主体一致性：角色卡、三视图、参考注入 | DeepSeek | 待开始 |
 | 1.5 | M6 | 首尾帧、画布内视频裁剪拼接 | DeepSeek | 待开始 |
-| 1.6 | M6 | 组存为模板、一键重跑（[brief](./feature-briefs/2026-11-06-canvas-group-template-rerun.md)） | DeepSeek | 实现中 |
+| 1.6 | M6 | 组存为模板、一键重跑（[brief](./feature-briefs/2026-11-06-canvas-group-template-rerun.md)） | DeepSeek | ✅ 完成 |
 | 2.1 | M7 | 托管 Agent：剧本 → 分镜 → 镜头自动上画布（分多步） | DeepSeek | 待开始 |
 | 2.2 | M7 | 工作流模板与「克隆同款」 | DeepSeek | 待开始 |
 | 3.x | M8 | 模板广场 / 团队协作 / 开放 API 与 Skill（进入前重新拆分） | — | 未拆分 |

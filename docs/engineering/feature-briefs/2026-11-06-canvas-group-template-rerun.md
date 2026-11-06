@@ -3,7 +3,7 @@
 - 日期：2026-11-06
 - 作者：pilipala engineering（Claude）
 - 对应 WP / 里程碑：M6 / ROADMAP 1.6
-- 状态：已确认
+- 状态：已验收
 
 ## 背景
 
