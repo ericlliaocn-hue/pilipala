@@ -30,6 +30,7 @@ import { CanvasNodeAngleDialog, type CanvasImageAngleParams } from "@/components
 import { CanvasNodeCropDialog, type CanvasImageCropRect } from "@/components/canvas/canvas-node-crop-dialog";
 import { CanvasNodeMaskEditDialog, type CanvasImageMaskEditPayload } from "@/components/canvas/canvas-node-mask-edit-dialog";
 import { CanvasNodeSplitDialog, type CanvasImageSplitParams } from "@/components/canvas/canvas-node-split-dialog";
+import { CanvasStoryboardDialog, type CanvasStoryboardSize } from "@/components/canvas/canvas-storyboard-dialog";
 import { CanvasNodeUpscaleDialog, type CanvasImageUpscaleParams } from "@/components/canvas/canvas-node-upscale-dialog";
 import { buildNodeGenerationContext, buildNodeGenerationInputs, buildNodeResponseMessages, hydrateNodeGenerationContext, type NodeGenerationInput } from "@/components/canvas/canvas-node-generation";
 import { CanvasNodeHoverToolbar, CanvasNodeInfoModal } from "@/components/canvas/canvas-node-hover-toolbar";
@@ -73,6 +74,7 @@ import {
     resolveMetadataReferences,
     sourceNodeReferenceImages,
 } from "@/lib/canvas/canvas-generation-helpers";
+import { buildStoryboardPrompt } from "@/lib/canvas/canvas-storyboard";
 import { getNodeDefinition, isBuiltinNodeType as isBuiltinType, useNodeRegistryVersion } from "@/lib/canvas/node-registry";
 import { registerBuiltinNodes } from "@/components/canvas/nodes/builtin-nodes";
 import { CanvasPluginManagerModal } from "@/components/canvas/canvas-plugin-manager-modal";
@@ -277,6 +279,7 @@ function InfiniteCanvasPage() {
     const [cropNodeId, setCropNodeId] = useState<string | null>(null);
     const [maskEditNodeId, setMaskEditNodeId] = useState<string | null>(null);
     const [splitNodeId, setSplitNodeId] = useState<string | null>(null);
+    const [storyboardNodeId, setStoryboardNodeId] = useState<string | null>(null);
     const [upscaleNodeId, setUpscaleNodeId] = useState<string | null>(null);
     const [superResolveNodeId, setSuperResolveNodeId] = useState<string | null>(null);
     const [angleNodeId, setAngleNodeId] = useState<string | null>(null);
@@ -804,6 +807,7 @@ function InfiniteCanvasPage() {
     const cropNode = cropNodeId ? nodeById.get(cropNodeId) || null : null;
     const maskEditNode = maskEditNodeId ? nodeById.get(maskEditNodeId) || null : null;
     const splitNode = splitNodeId ? nodeById.get(splitNodeId) || null : null;
+    const storyboardNode = storyboardNodeId ? nodeById.get(storyboardNodeId) || null : null;
     const upscaleNode = upscaleNodeId ? nodeById.get(upscaleNodeId) || null : null;
     const superResolveNode = superResolveNodeId ? nodeById.get(superResolveNodeId) || null : null;
     const angleNode = angleNodeId ? nodeById.get(angleNodeId) || null : null;
@@ -3105,6 +3109,80 @@ function InfiniteCanvasPage() {
         [effectiveConfig.canvasImageCount, effectiveConfig.count, effectiveConfig.imageModel, effectiveConfig.model, effectiveConfig.size, message, t],
     );
 
+    const openStoryboardDialog = useCallback(
+        (node: CanvasNodeData) => {
+            if (!(node.metadata?.content || node.metadata?.prompt || "").trim()) {
+                message.warning(t("canvas.storyboard.empty"));
+                return;
+            }
+            setStoryboardNodeId(node.id);
+        },
+        [message, t],
+    );
+
+    const generateStoryboardGrid = useCallback(
+        async (node: CanvasNodeData, size: CanvasStoryboardSize) => {
+            const script = (node.metadata?.content || node.metadata?.prompt || "").trim();
+            if (!script) {
+                setStoryboardNodeId(null);
+                message.warning(t("canvas.storyboard.empty"));
+                return;
+            }
+            setStoryboardNodeId(null);
+            const generationConfig = { ...buildGenerationConfig(effectiveConfig, node, "image"), size: "1:1", count: "1" };
+            if (!token && generationConfig.channelMode === "remote") {
+                setAuthModalOpen(true);
+                return;
+            }
+            if (!isAiConfigReady(generationConfig, generationConfig.model)) {
+                openConfigDialog(true);
+                return;
+            }
+            const imageSpec = NODE_DEFAULT_SIZE[CanvasNodeType.Image];
+            const gridNode: CanvasNodeData = {
+                ...createCanvasNode(CanvasNodeType.Image, { x: node.position.x + node.width + 96 + imageSpec.width / 2, y: node.position.y + node.height / 2 }, { status: NODE_STATUS_LOADING }),
+                title: t("canvas.storyboard.gridTitle", { count: size * size }),
+            };
+            setNodes((prev) => [...prev, gridNode]);
+            setConnections((prev) => [...prev, { id: nanoid(), fromNodeId: node.id, toNodeId: gridNode.id }]);
+            setRunningNodeId(gridNode.id);
+            const controller = startGenerationRequest(gridNode.id, node.id, gridNode.id);
+            try {
+                const context = await hydrateNodeGenerationContext(buildNodeGenerationContext(node.id, nodesRef.current, connectionsRef.current, buildStoryboardPrompt(script, size)));
+                const references = context.referenceImages;
+                const image = references.length
+                    ? await requestEdit(generationConfig, context.prompt, references, { signal: controller.signal }).then((items) => items[0])
+                    : await requestGeneration(generationConfig, context.prompt, { signal: controller.signal }).then((items) => items[0]);
+                const uploaded = await uploadImage(image.dataUrl, { signal: controller.signal });
+                const imageSize = fitNodeSize(uploaded.width, uploaded.height);
+                const generationMetadata = buildImageGenerationMetadata(references.length ? "edit" : "generation", generationConfig, 1, references);
+                const updatedGridNode: CanvasNodeData = {
+                    ...gridNode,
+                    width: imageSize.width,
+                    height: imageSize.height,
+                    metadata: { ...gridNode.metadata, ...imageMetadata(uploaded), prompt: context.prompt, ...generationMetadata },
+                };
+                setNodes((prev) => prev.map((item) => (item.id === gridNode.id ? updatedGridNode : item)));
+                await splitImageNode(updatedGridNode, { rows: size, columns: size });
+            } catch (error) {
+                if (isGenerationCanceled(error)) return;
+                const errorDetails = error instanceof Error ? error.message : t("canvas.projectPage.generationFailed");
+                message.error(errorDetails);
+                setNodes((prev) =>
+                    prev.map((item) =>
+                        item.id === gridNode.id
+                            ? { ...item, metadata: { ...item.metadata, status: item.metadata?.content ? NODE_STATUS_SUCCESS : NODE_STATUS_ERROR, errorDetails: item.metadata?.content ? undefined : errorDetails } }
+                            : item,
+                    ),
+                );
+            } finally {
+                finishGenerationRequest(gridNode.id, controller);
+                setRunningNodeId((current) => (current === gridNode.id ? null : current));
+            }
+        },
+        [effectiveConfig, finishGenerationRequest, isAiConfigReady, message, openConfigDialog, splitImageNode, startGenerationRequest, t, token],
+    );
+
     const insertAssistantImage = useCallback(
         async (image: CanvasAssistantImage) => {
             const storedImage = image.storageKey ? { url: image.dataUrl, storageKey: image.storageKey, width: 1, height: 1, bytes: 0, mimeType: "image/png" } : await uploadImage(image.dataUrl);
@@ -3466,6 +3544,7 @@ function InfiniteCanvasPage() {
                     onIncreaseFont={(node) => handleFontSizeChange(node.id, Math.min(32, (node.metadata?.fontSize || 14) + 2))}
                     onToggleDialog={(node) => setDialogNodeId((current) => (current === node.id ? null : node.id))}
                     onGenerateImage={generateImageFromTextNode}
+                    onStoryboard={openStoryboardDialog}
                     onUpload={(node) => handleUploadRequest(node.id)}
                     onDownload={downloadNodeImage}
                     onSaveAsset={(node) => void saveNodeAsset(node)}
@@ -3567,6 +3646,8 @@ function InfiniteCanvasPage() {
                 ) : null}
 
                 {splitNode?.metadata?.content ? <CanvasNodeSplitDialog dataUrl={splitNode.metadata.content} open={Boolean(splitNode)} onClose={() => setSplitNodeId(null)} onConfirm={(params) => void splitImageNode(splitNode!, params)} /> : null}
+
+                {storyboardNode ? <CanvasStoryboardDialog open={Boolean(storyboardNode)} onClose={() => setStoryboardNodeId(null)} onConfirm={(size) => void generateStoryboardGrid(storyboardNode, size)} /> : null}
 
                 {upscaleNode?.metadata?.content ? (
                     <CanvasNodeUpscaleDialog dataUrl={upscaleNode.metadata.content} open={Boolean(upscaleNode)} onClose={() => setUpscaleNodeId(null)} onConfirm={(params) => void upscaleImageNode(upscaleNode!, params)} />
