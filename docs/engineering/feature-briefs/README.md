@@ -39,7 +39,7 @@ Brief 是 pilipala 的需求源。Minimax 与人实现都从这里粘贴，不�
 | [2026-11-01-admin-console.md](./2026-11-01-admin-console.md) | M4 | 独立管理后台 + 平台/租户 RBAC + 个人租户边界（团队版界面另开） | 已实现 |
 | [2026-11-06-ci-and-typecheck.md](./2026-11-06-ci-and-typecheck.md) | M5 / ROADMAP 0.5 | main/PR CI 校验流水线 + web 类型检查归零 | 已实现 |
 | [2026-11-06-canvas-group-template-rerun.md](./2026-11-06-canvas-group-template-rerun.md) | M6 / ROADMAP 1.6 | 画布组存为本地模板 + 组内节点一键依次重跑 | 已实现 |
-| [2026-11-06-storyboard-grid.md](./2026-11-06-storyboard-grid.md) | M6 / ROADMAP 1.3 | 文本节点一键生成 9 / 25 宫格分镜（一次出图 + 自动切图） | 实现中 |
+| [2026-11-06-storyboard-grid.md](./2026-11-06-storyboard-grid.md) | M6 / ROADMAP 1.3 | 文本节点一键生成 9 / 25 宫格分镜（一次出图 + 自动切图） | ✅ 验收通过 |
 
 > **编号**：**WP14** = MyBatis-Plus **代码**迁移；**WP15** = 数据分析文档基线；**WP16** = 预付费充值渠道；**WP21** = 视频多渠道路由 + NewAPI 网关。勿混用编号。
 
