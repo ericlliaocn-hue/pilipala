@@ -3147,31 +3147,42 @@ function InfiniteCanvasPage() {
             setConnections((prev) => [...prev, { id: nanoid(), fromNodeId: node.id, toNodeId: gridNode.id }]);
             setRunningNodeId(gridNode.id);
             const controller = startGenerationRequest(gridNode.id, node.id, gridNode.id);
+            let hasGridImage = false;
             try {
-                const context = await hydrateNodeGenerationContext(buildNodeGenerationContext(node.id, nodesRef.current, connectionsRef.current, buildStoryboardPrompt(script, size)));
+                const generationContext = buildNodeGenerationContext(node.id, nodesRef.current, connectionsRef.current, buildStoryboardPrompt(script, size));
+                const generationMetadata = buildImageGenerationMetadata(generationContext.referenceImages.length ? "edit" : "generation", generationConfig, 1, generationContext.referenceImages);
+                const prompt = generationContext.prompt;
+                const requestMetadata = { prompt, ...generationMetadata };
+                setNodes((prev) => prev.map((item) => (item.id === gridNode.id ? { ...item, metadata: { ...item.metadata, ...requestMetadata } } : item)));
+                const context = await hydrateNodeGenerationContext(generationContext);
                 const references = context.referenceImages;
                 const image = references.length
-                    ? await requestEdit(generationConfig, context.prompt, references, { signal: controller.signal }).then((items) => items[0])
-                    : await requestGeneration(generationConfig, context.prompt, { signal: controller.signal }).then((items) => items[0]);
+                    ? await requestEdit(generationConfig, prompt, references, { signal: controller.signal }).then((items) => items[0])
+                    : await requestGeneration(generationConfig, prompt, { signal: controller.signal }).then((items) => items[0]);
                 const uploaded = await uploadImage(image.dataUrl, { signal: controller.signal });
+                hasGridImage = true;
                 const imageSize = fitNodeSize(uploaded.width, uploaded.height);
-                const generationMetadata = buildImageGenerationMetadata(references.length ? "edit" : "generation", generationConfig, 1, references);
                 const updatedGridNode: CanvasNodeData = {
                     ...gridNode,
                     width: imageSize.width,
                     height: imageSize.height,
-                    metadata: { ...gridNode.metadata, ...imageMetadata(uploaded), prompt: context.prompt, ...generationMetadata },
+                    metadata: { ...gridNode.metadata, ...imageMetadata(uploaded), ...requestMetadata },
                 };
                 setNodes((prev) => prev.map((item) => (item.id === gridNode.id ? updatedGridNode : item)));
                 await splitImageNode(updatedGridNode, { rows: size, columns: size });
             } catch (error) {
                 if (isGenerationCanceled(error)) return;
+                if (hasGridImage) {
+                    message.warning(t("canvas.storyboard.splitFailed"));
+                    setNodes((prev) => prev.map((item) => (item.id === gridNode.id ? { ...item, metadata: { ...item.metadata, status: NODE_STATUS_SUCCESS, errorDetails: undefined } } : item)));
+                    return;
+                }
                 const errorDetails = error instanceof Error ? error.message : t("canvas.projectPage.generationFailed");
                 message.error(errorDetails);
                 setNodes((prev) =>
                     prev.map((item) =>
                         item.id === gridNode.id
-                            ? { ...item, metadata: { ...item.metadata, status: item.metadata?.content ? NODE_STATUS_SUCCESS : NODE_STATUS_ERROR, errorDetails: item.metadata?.content ? undefined : errorDetails } }
+                            ? { ...item, metadata: { ...item.metadata, status: NODE_STATUS_ERROR, errorDetails } }
                             : item,
                     ),
                 );
