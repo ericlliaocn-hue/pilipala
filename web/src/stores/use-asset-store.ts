@@ -5,6 +5,7 @@ import { nanoid } from "nanoid";
 import { localForageStorage } from "@/lib/localforage-storage";
 import { cleanupUnusedImages, ensureImagePreview, previewUrlFor, resolveImageUrl, uploadImage } from "@/services/image-storage";
 import { cleanupUnusedMedia, resolveMediaUrl } from "@/services/file-storage";
+import { useCanvasTemplateStore } from "@/stores/canvas/use-canvas-template-store";
 
 export type AssetKind = "text" | "image" | "video";
 export type TextAsset = AssetBase<"text"> & { data: { content: string } };
@@ -97,8 +98,9 @@ export const useAssetStore = create<AssetStore>()(
             cleanupImages: (extra) => {
                 window.setTimeout(async () => {
                     const { useCanvasStore } = await import("@/stores/canvas/use-canvas-store");
-                    await cleanupUnusedImages({ assets: get().assets, projects: useCanvasStore.getState().projects, extra });
-                    await cleanupUnusedMedia({ assets: get().assets, projects: useCanvasStore.getState().projects, extra });
+                    const templates = useCanvasTemplateStore.getState().templates;
+                    await cleanupUnusedImages({ assets: get().assets, projects: useCanvasStore.getState().projects, extra, templates });
+                    await cleanupUnusedMedia({ assets: get().assets, projects: useCanvasStore.getState().projects, extra, templates });
                 }, 0);
             },
         }),

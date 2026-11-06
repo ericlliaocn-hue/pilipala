@@ -1,7 +1,7 @@
 import { memo, useEffect, useMemo, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent } from "react";
 import { App, Empty, Input, Popconfirm, Select, Spin, Tag } from "antd";
 import { useQuery } from "@tanstack/react-query";
-import { BookOpen, Check, ChevronRight, Download, Eye, FileText, Image as ImageIcon, LayoutGrid, ListChecks, Music2, Plus, Rows3, Search, Settings2, Square, Trash2, Type, Video } from "lucide-react";
+import { BookOpen, Check, ChevronRight, Download, Eye, FileText, Image as ImageIcon, LayoutGrid, LayoutTemplate, ListChecks, Music2, Plus, Rows3, Search, Settings2, Square, Trash2, Type, Video } from "lucide-react";
 import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
 
@@ -14,6 +14,7 @@ import { fetchSourcePrompts, type Prompt } from "@/services/api/prompts";
 import { uploadMediaFile } from "@/services/file-storage";
 import { previewUrlFor, subscribeImagePreviews, getImagePreviewRevision, uploadImage } from "@/services/image-storage";
 import { useAssetStore, type Asset, type AssetKind } from "@/stores/use-asset-store";
+import { useCanvasTemplateStore } from "@/stores/canvas/use-canvas-template-store";
 import { usePromptSourceStore } from "@/stores/use-prompt-source-store";
 import { CANVAS_SIDE_PANEL_MAX_WIDTH, CANVAS_SIDE_PANEL_MIN_WIDTH, CANVAS_SIDE_PANEL_MOTION_MS, useCanvasSidePanelStore } from "@/stores/use-canvas-side-panel-store";
 import { useThemeStore } from "@/stores/use-theme-store";
@@ -24,7 +25,7 @@ import type { InsertAssetPayload } from "./asset-picker-modal";
 const PANEL_MOTION_SECONDS = CANVAS_SIDE_PANEL_MOTION_MS / 1000;
 const PANEL_EASE = [0.22, 1, 0.36, 1] as const;
 
-type PanelTab = "canvas" | "assets" | "prompts";
+type PanelTab = "canvas" | "assets" | "prompts" | "templates";
 
 type Props = {
     nodes: CanvasNodeData[];
@@ -33,6 +34,7 @@ type Props = {
     onPreviewNode: (nodeId: string) => void;
     onHoverNode: (nodeId: string | null) => void;
     onInsertAsset: (payload: InsertAssetPayload) => void;
+    onInsertTemplate: (templateId: string) => void;
 };
 
 const NODE_TYPE_ICON: Record<string, typeof Square> = {
@@ -51,7 +53,7 @@ const STATUS_COLOR: Record<string, string> = {
     idle: "transparent",
 };
 
-export function CanvasSidePanel({ nodes, selectedNodeIds, onFocusNode, onPreviewNode, onHoverNode, onInsertAsset }: Props) {
+export function CanvasSidePanel({ nodes, selectedNodeIds, onFocusNode, onPreviewNode, onHoverNode, onInsertAsset, onInsertTemplate }: Props) {
     const { t } = useTranslation();
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const [tab, setTab] = useState<PanelTab>("canvas");
@@ -104,14 +106,17 @@ export function CanvasSidePanel({ nodes, selectedNodeIds, onFocusNode, onPreview
                     <TabButton label={t("canvas.sidePanel.canvas")} active={tab === "canvas"} theme={theme} onClick={() => setTab("canvas")} />
                     <TabButton label={t("canvas.sidePanel.assets")} active={tab === "assets"} theme={theme} onClick={() => setTab("assets")} />
                     <TabButton label={t("canvas.sidePanel.prompts")} active={tab === "prompts"} theme={theme} onClick={() => setTab("prompts")} />
+                    <TabButton label={t("canvas.template.tab")} active={tab === "templates"} theme={theme} onClick={() => setTab("templates")} />
                 </div>
                 <div className="mt-2 min-h-0 flex-1 overflow-hidden">
                     {tab === "canvas" ? (
                         <CanvasNodesTab nodes={nodes} selectedNodeIds={selectedNodeIds} onFocusNode={onFocusNode} onPreviewNode={onPreviewNode} onHoverNode={onHoverNode} theme={theme} />
                     ) : tab === "assets" ? (
                         <CanvasAssetsTab onInsert={onInsertAsset} theme={theme} />
-                    ) : (
+                    ) : tab === "prompts" ? (
                         <CanvasPromptsTab onInsert={onInsertAsset} theme={theme} />
+                    ) : (
+                        <CanvasTemplatesTab onInsert={onInsertTemplate} theme={theme} />
                     )}
                 </div>
                 <button type="button" className="absolute inset-y-0 right-0 z-40 w-4 translate-x-1/2 cursor-col-resize" onPointerDown={startResize} aria-label={t("canvas.sidePanel.resize")} />
@@ -128,6 +133,70 @@ function TabButton({ label, active, theme, onClick }: { label: string; active: b
         </button>
     );
 }
+
+// ---------------------------------------------------------------------------
+// Templates tab: saved group workflows, click to insert, confirm to delete.
+// ---------------------------------------------------------------------------
+
+const CanvasTemplatesTab = memo(function CanvasTemplatesTab({ onInsert, theme }: { onInsert: (templateId: string) => void; theme: CanvasTheme }) {
+    const { message, modal } = App.useApp();
+    const { t } = useTranslation();
+    const templates = useCanvasTemplateStore((state) => state.templates);
+    const removeTemplate = useCanvasTemplateStore((state) => state.removeTemplate);
+
+    const confirmRemove = (id: string) => {
+        modal.confirm({
+            title: t("canvas.template.removeTitle"),
+            okText: t("common.delete"),
+            cancelText: t("common.cancel"),
+            okButtonProps: { danger: true },
+            onOk: () => {
+                removeTemplate(id);
+                message.success(t("canvas.template.removed"));
+            },
+        });
+    };
+
+    return (
+        <div className="flex h-full flex-col">
+            <div className="flex items-center gap-2 px-3 pb-2.5 pt-1">
+                <span className="text-xs font-medium opacity-60">{t("canvas.template.tab")}</span>
+                {templates.length ? <span className="text-xs opacity-35">{templates.length}</span> : null}
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
+                {templates.length ? (
+                    <div className="space-y-1">
+                        {templates.map((template) => (
+                            <div key={template.id} className="flex items-center gap-2.5 rounded-lg px-2 py-2 transition hover:bg-black/5 dark:hover:bg-white/5">
+                                <span className="grid size-10 shrink-0 place-items-center">
+                                    <LayoutTemplate className="size-5 opacity-60" />
+                                </span>
+                                <button type="button" onClick={() => onInsert(template.id)} className="min-w-0 flex-1 text-left">
+                                    <div className="truncate text-sm font-medium leading-snug">{template.title}</div>
+                                    <div className="mt-0.5 truncate text-xs leading-snug opacity-50">
+                                        {t("canvas.template.nodeCount", { count: template.nodes.length })} · {new Date(template.createdAt).toLocaleDateString()}
+                                    </div>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => confirmRemove(template.id)}
+                                    className="grid size-7 shrink-0 place-items-center rounded-md opacity-55 transition hover:bg-black/5 hover:opacity-100 dark:hover:bg-white/10"
+                                    style={{ color: theme.node.text }}
+                                    aria-label={t("common.delete")}
+                                    title={t("common.delete")}
+                                >
+                                    <Trash2 className="size-3.5" />
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="pt-16 text-center text-sm opacity-40">{t("canvas.template.empty")}</div>
+                )}
+            </div>
+        </div>
+    );
+});
 
 // ---------------------------------------------------------------------------
 // Canvas tab: list nodes and center, zoom, and select the clicked node.

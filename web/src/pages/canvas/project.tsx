@@ -46,12 +46,14 @@ import { useAgentStore } from "@/stores/use-agent-store";
 import { useAuthStore } from "@/stores/use-auth-store";
 import { isCloudProjectId, toCanvasDataSnapshot } from "@/services/api/pilipala-cloud";
 import { useCanvasStore, type CanvasProject } from "@/stores/canvas/use-canvas-store";
+import { useCanvasTemplateStore } from "@/stores/canvas/use-canvas-template-store";
 import { useAgentBridge } from "@/pages/canvas/hooks/use-agent-bridge";
 import { usePluginHost } from "@/pages/canvas/hooks/use-plugin-host";
 import { buildNodeMentionReferences, getGroupResourceNodes, isCanvasReferenceNode, type CanvasResourceReference } from "@/lib/canvas/canvas-resource-references";
 import { exportCanvasProjects } from "@/lib/canvas/canvas-export";
 import { applyNodeConfigPatch, audioMetadata, buildAudioGenerationMetadata, buildImageGenerationMetadata, createCanvasNode, imageMetadata, videoMetadata } from "@/lib/canvas/canvas-node-factory";
 import { applyGroupSelection, applyUngroupSelection, canGroupSelectedNodes, canUngroupSelectedNodes, collectGroupMemberNodes, findContainingGroupId, findGroupDropTarget, focusViewportForNode, getConnectionTargetAnchor, getGroupWrapRect, normalizeConnection, snapNodesIntoGroup } from "@/lib/canvas/canvas-node-geometry";
+import { collectGroupRerunNodes, snapshotGroupWorkflow } from "@/lib/canvas/canvas-group-workflow";
 import {
     audioExtension,
     buildAngleLabel,
@@ -227,6 +229,7 @@ function InfiniteCanvasPage() {
     const openConfigDialog = useConfigStore((state) => state.openConfigDialog);
     const addAsset = useAssetStore((state) => state.addAsset);
     const cleanupAssetImages = useAssetStore((state) => state.cleanupImages);
+    const addTemplate = useCanvasTemplateStore((state) => state.addTemplate);
     const hydrated = useCanvasStore((state) => state.hydrated);
     const openProject = useCanvasStore((state) => state.openProject);
     const updateProject = useCanvasStore((state) => state.updateProject);
@@ -1099,65 +1102,92 @@ function InfiniteCanvasPage() {
         };
     }, []);
 
+    const insertWorkflowSnapshot = useCallback(
+        (snapshot: CanvasClipboard, titleSuffix: string) => {
+            const center = getCanvasCenter();
+            const bounds = snapshot.nodes.reduce(
+                (acc, node) => ({
+                    left: Math.min(acc.left, node.position.x),
+                    top: Math.min(acc.top, node.position.y),
+                    right: Math.max(acc.right, node.position.x + node.width),
+                    bottom: Math.max(acc.bottom, node.position.y + node.height),
+                }),
+                { left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity },
+            );
+            const dx = center.x - (bounds.left + bounds.right) / 2;
+            const dy = center.y - (bounds.top + bounds.bottom) / 2;
+            const idMap = new Map<string, string>();
+            const nextNodes = snapshot.nodes.map((node, index) => {
+                const id = `${node.type}-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 7)}`;
+                idMap.set(node.id, id);
+                return {
+                    ...node,
+                    id,
+                    title: node.title.endsWith(titleSuffix) ? node.title : `${node.title}${titleSuffix}`,
+                    position: {
+                        x: node.position.x + dx,
+                        y: node.position.y + dy,
+                    },
+                    metadata: node.metadata ? { ...node.metadata } : undefined,
+                };
+            });
+
+            const pastedNodes = nextNodes.map((node) => {
+                const groupId = node.metadata?.groupId;
+                if (!groupId) return node;
+                return { ...node, metadata: { ...node.metadata, groupId: idMap.get(groupId) } };
+            });
+
+            const nextConnections = snapshot.connections.flatMap((connection, index) => {
+                const toNodeId = idMap.get(connection.toNodeId);
+                if (!toNodeId) return [];
+                return [
+                    {
+                        ...connection,
+                        id: `conn-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 7)}`,
+                        fromNodeId: idMap.get(connection.fromNodeId) ?? connection.fromNodeId,
+                        toNodeId,
+                    },
+                ];
+            });
+
+            setNodes((prev) => [...prev, ...pastedNodes]);
+            setConnections((prev) => [...prev, ...nextConnections]);
+            setSelectedNodeIds(new Set(pastedNodes.map((node) => node.id)));
+            setSelectedConnectionId(null);
+            setContextMenu(null);
+            setDialogNodeId(pastedNodes[0]?.type === CanvasNodeType.Group ? null : pastedNodes[0]?.id || null);
+            return true;
+        },
+        [getCanvasCenter],
+    );
+
     const pasteCopiedNodes = useCallback(() => {
         const clipboard = clipboardRef.current;
         if (!clipboard?.nodes.length) return false;
-
-        const center = getCanvasCenter();
-        const bounds = clipboard.nodes.reduce(
-            (acc, node) => ({
-                left: Math.min(acc.left, node.position.x),
-                top: Math.min(acc.top, node.position.y),
-                right: Math.max(acc.right, node.position.x + node.width),
-                bottom: Math.max(acc.bottom, node.position.y + node.height),
-            }),
-            { left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity },
-        );
-        const dx = center.x - (bounds.left + bounds.right) / 2;
-        const dy = center.y - (bounds.top + bounds.bottom) / 2;
-        const idMap = new Map<string, string>();
-        const nextNodes = clipboard.nodes.map((node, index) => {
-            const id = `${node.type}-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 7)}`;
-            idMap.set(node.id, id);
-            return {
-                ...node,
-                id,
-                title: node.title.endsWith(" Copy") ? node.title : `${node.title} Copy`,
-                position: {
-                    x: node.position.x + dx,
-                    y: node.position.y + dy,
-                },
-                metadata: node.metadata ? { ...node.metadata } : undefined,
-            };
-        });
-
-        const pastedNodes = nextNodes.map((node) => {
-            const groupId = node.metadata?.groupId;
-            if (!groupId) return node;
-            return { ...node, metadata: { ...node.metadata, groupId: idMap.get(groupId) } };
-        });
-
-        const nextConnections = clipboard.connections.flatMap((connection, index) => {
-            const toNodeId = idMap.get(connection.toNodeId);
-            if (!toNodeId) return [];
-            return [
-                {
-                    ...connection,
-                    id: `conn-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 7)}`,
-                    fromNodeId: idMap.get(connection.fromNodeId) ?? connection.fromNodeId,
-                    toNodeId,
-                },
-            ];
-        });
-
-        setNodes((prev) => [...prev, ...pastedNodes]);
-        setConnections((prev) => [...prev, ...nextConnections]);
-        setSelectedNodeIds(new Set(pastedNodes.map((node) => node.id)));
-        setSelectedConnectionId(null);
-        setContextMenu(null);
-        setDialogNodeId(pastedNodes[0]?.type === CanvasNodeType.Group ? null : pastedNodes[0]?.id || null);
+        insertWorkflowSnapshot(clipboard, " Copy");
         return true;
-    }, [getCanvasCenter]);
+    }, [insertWorkflowSnapshot]);
+
+    const saveGroupAsTemplate = useCallback(
+        (node: CanvasNodeData) => {
+            const snapshot = snapshotGroupWorkflow(node.id, nodesRef.current, connectionsRef.current);
+            if (!snapshot) return;
+            addTemplate(node.title || t("canvas.template.defaultTitle"), snapshot);
+            message.success(t("canvas.template.saved"));
+        },
+        [addTemplate, message, t],
+    );
+
+    const insertTemplate = useCallback(
+        (templateId: string) => {
+            const template = useCanvasTemplateStore.getState().templates.find((item) => item.id === templateId);
+            if (!template) return;
+            insertWorkflowSnapshot(template, "");
+            message.success(t("canvas.template.inserted"));
+        },
+        [insertWorkflowSnapshot, message, t],
+    );
 
     const resetViewport = useCallback(() => {
         setViewport({ x: size.width / 2, y: size.height / 2, k: 1 });
@@ -2997,6 +3027,31 @@ function InfiniteCanvasPage() {
         [completeVideoNodeTask, effectiveConfig, finishGenerationRequest, isAiConfigReady, message, openConfigDialog, pollVideoNodeTask, startGenerationRequest, t],
     );
 
+    const rerunGroup = useCallback(
+        (node: CanvasNodeData) => {
+            const targets = collectGroupRerunNodes(node.id, nodesRef.current, connectionsRef.current);
+            if (!targets.length) {
+                message.info(t("canvas.template.rerunEmpty"));
+                return;
+            }
+            modal.confirm({
+                title: t("canvas.template.rerunTitle"),
+                content: t("canvas.template.rerunConfirm", { count: targets.length }),
+                okText: t("canvas.template.rerun"),
+                cancelText: t("common.cancel"),
+                onOk: async () => {
+                    for (const target of targets) {
+                        const latest = nodesRef.current.find((item) => item.id === target.id);
+                        if (!latest) continue;
+                        await handleRetryNode(latest);
+                    }
+                    message.success(t("canvas.template.rerunDone"));
+                },
+            });
+        },
+        [handleRetryNode, message, modal, t],
+    );
+
     const deleteBatchImage = useCallback((nodeId: string, imageId: string) => {
         const node = nodesRef.current.find((item) => item.id === nodeId);
         if ((node?.metadata?.images?.length || 0) <= 2) setExpandedBatchNodeIds((current) => new Set([...current].filter((id) => id !== nodeId)));
@@ -3233,7 +3288,7 @@ function InfiniteCanvasPage() {
 
     return (
         <main className="flex h-full min-h-0 overflow-hidden" style={{ background: theme.canvas.background, color: theme.node.text }}>
-            <CanvasSidePanel nodes={nodes} selectedNodeIds={selectedNodeIds} onFocusNode={focusNode} onPreviewNode={setPreviewNodeId} onHoverNode={setHoverPreviewNodeId} onInsertAsset={handleAssetInsert} />
+            <CanvasSidePanel nodes={nodes} selectedNodeIds={selectedNodeIds} onFocusNode={focusNode} onPreviewNode={setPreviewNodeId} onHoverNode={setHoverPreviewNodeId} onInsertAsset={handleAssetInsert} onInsertTemplate={insertTemplate} />
             <section className="relative min-w-0 flex-1 overflow-hidden">
                 <CanvasTopBar
                     title={currentProject?.title || t("canvas.projectPage.untitledCanvas")}
@@ -3424,6 +3479,8 @@ function InfiniteCanvasPage() {
                     onToggleFreeResize={(node) => toggleNodeFreeResize(node.id)}
                     onDelete={(node) => deleteNodes(new Set([node.id]))}
                     onUngroup={(node) => ungroupSelection(new Set([node.id]))}
+                    onSaveTemplate={saveGroupAsTemplate}
+                    onRerunGroup={rerunGroup}
                 />
 
                 {hasMultipleSelectedNodes && !selectionBox ? (
