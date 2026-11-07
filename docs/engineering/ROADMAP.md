@@ -37,7 +37,7 @@
 | 1.1 | M6 | 网关扩模型：Seedream / 可灵 / Wan / TTS / 配乐（需渠道 Key） | DeepSeek | 待开始 |
 | 1.2 | M6 | 画布剧本 / 分镜节点 | DeepSeek | 待开始 |
 | 1.3 | M6 | 9 / 25 宫格分镜：一次出宫格图再自动切成镜头（[brief](./feature-briefs/2026-11-06-storyboard-grid.md)） | DeepSeek，Astra 收尾 | 代码验收通过；修复提交 `4c0778d`，页面跳过、真实服务未测，未合并 |
-| 1.4 | M6 | 角色 / 主体一致性：角色卡、三视图、参考注入；[1.4a 角色参考卡](./feature-briefs/2026-11-07-character-reference-card.md)、[1.4b 三视图](./feature-briefs/2026-11-07-character-three-view.md) | DeepSeek | 1.4a 代码验收通过；页面按用户要求跳过、真实服务未测。1.4b 代码验收通过；外置 Edge 已验证弹窗与模式切换，真实生成/服务/计费未测；尚未提交 |
+| 1.4 | M6 | 角色 / 主体一致性：角色卡、三视图、参考注入；[1.4a 角色参考卡](./feature-briefs/2026-11-07-character-reference-card.md)、[1.4b 三视图](./feature-briefs/2026-11-07-character-three-view.md) | DeepSeek | 1.4a 代码验收通过；页面按用户要求跳过、真实服务未测。1.4b 代码验收通过；外置 Edge 已验证弹窗与模式切换，真实生成/服务/计费未测；已提交并推送 `ljx/feature/character-reference-card`（`4eaa6a0`），未合并 |
 | 1.5 | M6 | 首尾帧、画布内视频裁剪拼接 | DeepSeek | 待开始 |
 | 1.6 | M6 | 组存为模板、一键重跑（[brief](./feature-briefs/2026-11-06-canvas-group-template-rerun.md)） | DeepSeek | ✅ 完成 |
 | 2.1 | M7 | 托管 Agent：剧本 → 分镜 → 镜头自动上画布（分多步） | DeepSeek | 待开始 |
