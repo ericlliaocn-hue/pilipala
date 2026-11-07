@@ -53,6 +53,11 @@ export type CanvasNodeMetadata = {
     fontSize?: number;
     generationMode?: CanvasGenerationMode;
     generationType?: CanvasImageGenerationType;
+    storyboardGridSize?: 3 | 5;
+    storyboardParentId?: string;
+    storyboardCellIndex?: number;
+    storyboardAutoStorageKey?: string;
+    storyboardAutoPrompt?: string;
     model?: string;
     reasoningEffort?: "auto" | "low" | "medium" | "high" | "xhigh";
     size?: string;

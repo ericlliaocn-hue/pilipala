@@ -38,7 +38,11 @@ export function snapshotGroupWorkflow(groupId: string, nodes: CanvasNodeData[], 
 
 export function collectGroupRerunNodes(groupId: string, nodes: CanvasNodeData[], connections: CanvasConnection[]): CanvasNodeData[] {
     const candidates = nodes.filter(
-        (node) => node.metadata?.groupId === groupId && RERUN_TYPES.has(node.type) && (Boolean(node.metadata?.generationType) || Boolean(findRetrySourceNode(node.id, nodes, connections))),
+        (node) =>
+            node.metadata?.groupId === groupId &&
+            RERUN_TYPES.has(node.type) &&
+            !node.metadata?.storyboardParentId &&
+            (Boolean(node.metadata?.generationType) || Boolean(findRetrySourceNode(node.id, nodes, connections))),
     );
     const candidateIds = new Set(candidates.map((node) => node.id));
     const indegree = new Map(candidates.map((node) => [node.id, 0]));
