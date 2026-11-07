@@ -31,6 +31,7 @@ import { CanvasNodeCropDialog, type CanvasImageCropRect } from "@/components/can
 import { CanvasNodeMaskEditDialog, type CanvasImageMaskEditPayload } from "@/components/canvas/canvas-node-mask-edit-dialog";
 import { CanvasNodeSplitDialog, type CanvasImageSplitParams } from "@/components/canvas/canvas-node-split-dialog";
 import { CanvasStoryboardDialog, type CanvasStoryboardSize } from "@/components/canvas/canvas-storyboard-dialog";
+import { CanvasCharacterCardDialog } from "@/pages/canvas/components/canvas-character-card-dialog";
 import { CanvasNodeUpscaleDialog, type CanvasImageUpscaleParams } from "@/components/canvas/canvas-node-upscale-dialog";
 import { buildNodeGenerationContext, buildNodeGenerationInputs, buildNodeResponseMessages, hydrateNodeGenerationContext, type NodeGenerationInput } from "@/components/canvas/canvas-node-generation";
 import { CanvasNodeHoverToolbar, CanvasNodeInfoModal } from "@/components/canvas/canvas-node-hover-toolbar";
@@ -55,6 +56,7 @@ import { exportCanvasProjects } from "@/lib/canvas/canvas-export";
 import { applyNodeConfigPatch, audioMetadata, buildAudioGenerationMetadata, buildImageGenerationMetadata, createCanvasNode, imageMetadata, videoMetadata } from "@/lib/canvas/canvas-node-factory";
 import { applyGroupSelection, applyUngroupSelection, canGroupSelectedNodes, canUngroupSelectedNodes, collectGroupMemberNodes, findContainingGroupId, findGroupDropTarget, focusViewportForNode, getConnectionTargetAnchor, getGroupWrapRect, normalizeConnection, snapNodesIntoGroup } from "@/lib/canvas/canvas-node-geometry";
 import { collectGroupRerunNodes, snapshotGroupWorkflow } from "@/lib/canvas/canvas-group-workflow";
+import { buildCharacterCardNodes, normalizeCharacterCardInput, resolveCharacterCardImage, type CharacterCardInput } from "@/lib/canvas/canvas-character-card";
 import {
     audioExtension,
     buildAngleLabel,
@@ -285,6 +287,7 @@ function InfiniteCanvasPage() {
     const [maskEditNodeId, setMaskEditNodeId] = useState<string | null>(null);
     const [splitNodeId, setSplitNodeId] = useState<string | null>(null);
     const [storyboardNodeId, setStoryboardNodeId] = useState<string | null>(null);
+    const [characterCardNodeId, setCharacterCardNodeId] = useState<string | null>(null);
     const [upscaleNodeId, setUpscaleNodeId] = useState<string | null>(null);
     const [superResolveNodeId, setSuperResolveNodeId] = useState<string | null>(null);
     const [angleNodeId, setAngleNodeId] = useState<string | null>(null);
@@ -816,6 +819,7 @@ function InfiniteCanvasPage() {
     const maskEditNode = maskEditNodeId ? nodeById.get(maskEditNodeId) || null : null;
     const splitNode = splitNodeId ? nodeById.get(splitNodeId) || null : null;
     const storyboardNode = storyboardNodeId ? nodeById.get(storyboardNodeId) || null : null;
+    const characterCardNode = characterCardNodeId ? nodeById.get(characterCardNodeId) || null : null;
     const upscaleNode = upscaleNodeId ? nodeById.get(upscaleNodeId) || null : null;
     const superResolveNode = superResolveNodeId ? nodeById.get(superResolveNodeId) || null : null;
     const angleNode = angleNodeId ? nodeById.get(angleNodeId) || null : null;
@@ -2026,6 +2030,34 @@ function InfiniteCanvasPage() {
         [effectiveConfig.model, effectiveConfig.textModel, message, t],
     );
 
+    const createCharacterCard = useCallback(
+        (sourceNodeId: string, input: CharacterCardInput) => {
+            const normalized = normalizeCharacterCardInput(input);
+            if (!normalized) {
+                message.warning(t("canvas.characterCard.nameRequired"));
+                return false;
+            }
+            const sourceNode = nodesRef.current.find((item) => item.id === sourceNodeId);
+            if (!resolveCharacterCardImage(sourceNode)) {
+                message.error(t("canvas.characterCard.sourceMissing"));
+                return false;
+            }
+            const card = buildCharacterCardNodes(sourceNode, normalized);
+            if (!card) {
+                message.error(t("canvas.characterCard.sourceMissing"));
+                return false;
+            }
+            setNodes((prev) => [...prev, card.group, card.image, card.text]);
+            setSelectedNodeIds(new Set([card.group.id]));
+            setSelectedConnectionId(null);
+            setCharacterCardNodeId(null);
+            setContextMenu(null);
+            message.success(t("canvas.characterCard.created"));
+            return true;
+        },
+        [message, t],
+    );
+
     const cropImageNode = useCallback(async (node: CanvasNodeData, crop: CanvasImageCropRect) => {
         if (!node.metadata?.content) return;
         const cropped = await cropDataUrl(node.metadata.content, crop);
@@ -2248,9 +2280,10 @@ function InfiniteCanvasPage() {
             const imageConfig = NODE_DEFAULT_SIZE[CanvasNodeType.Image];
             const title = buildAngleLabel(params);
             const prompt = buildAnglePrompt(params);
-            const generationMetadata = buildImageGenerationMetadata("edit", generationConfig, 1, [
-                { id: node.id, name: `${node.title || node.id}.png`, type: node.metadata.mimeType || "image/png", dataUrl: node.metadata.content, storageKey: node.metadata.storageKey },
-            ]);
+            const sourceReference = { id: node.id, name: `${node.title || node.id}.png`, type: node.metadata.mimeType || "image/png", dataUrl: node.metadata.content, storageKey: node.metadata.storageKey };
+            const generationMetadata = buildImageGenerationMetadata("edit", generationConfig, 1, [sourceReference]);
+            const settleCanceled = () =>
+                setNodes((prev) => prev.map((item) => (item.id === childId && item.metadata?.status === NODE_STATUS_LOADING ? { ...item, metadata: { ...item.metadata, status: NODE_STATUS_IDLE } } : item)));
             setAngleNodeId(null);
             setRunningNodeId(childId);
             setNodes((prev) => [
@@ -2270,22 +2303,28 @@ function InfiniteCanvasPage() {
             setDialogNodeId(childId);
             const controller = startGenerationRequest(childId, node.id, childId);
             try {
-                const image = await requestEdit(
-                    generationConfig,
-                    prompt,
-                    [{ id: node.id, name: `${node.title || node.id}.png`, type: node.metadata.mimeType || "image/png", dataUrl: node.metadata.content, storageKey: node.metadata.storageKey }],
-                    { signal: controller.signal },
-                ).then((items) => items[0]);
+                const image = await requestEdit(generationConfig, prompt, [sourceReference], { signal: controller.signal }).then((items) => items[0]);
+                if (controller.signal.aborted) {
+                    settleCanceled();
+                    return;
+                }
                 const uploaded = await uploadImage(image.dataUrl, { signal: controller.signal });
+                if (controller.signal.aborted) {
+                    settleCanceled();
+                    return;
+                }
                 const size = fitNodeSize(uploaded.width, uploaded.height, imageConfig.width, imageConfig.height);
                 setNodes((prev) => prev.map((item) => (item.id === childId ? { ...item, width: size.width, height: size.height, metadata: { ...item.metadata, ...imageMetadata(uploaded), prompt, ...generationMetadata } } : item)));
             } catch (error) {
-                if (isGenerationCanceled(error)) return;
+                if (isGenerationCanceled(error) || controller.signal.aborted) {
+                    settleCanceled();
+                    return;
+                }
                 const errorDetails = error instanceof Error ? error.message : t("canvas.projectPage.generationFailed");
                 setNodes((prev) => prev.map((item) => (item.id === childId ? { ...item, metadata: { ...item.metadata, status: NODE_STATUS_ERROR, errorDetails } } : item)));
             } finally {
                 finishGenerationRequest(childId, controller);
-                setRunningNodeId(null);
+                setRunningNodeId((current) => (current === childId ? null : current));
             }
         },
         [effectiveConfig, finishGenerationRequest, openConfigDialog, startGenerationRequest, t],
@@ -3680,6 +3719,7 @@ function InfiniteCanvasPage() {
                     onAngle={(node) => setAngleNodeId(node.id)}
                     onViewImage={handleNodeViewImage}
                     onReversePrompt={createImageReversePromptNodes}
+                    onCharacterCard={(node) => setCharacterCardNodeId(node.id)}
                     onRetry={(node) => void handleRetryNode(node)}
                     onToggleFreeResize={(node) => toggleNodeFreeResize(node.id)}
                     onDelete={(node) => deleteNodes(new Set([node.id]))}
@@ -3772,6 +3812,8 @@ function InfiniteCanvasPage() {
                 {splitNode?.metadata?.content ? <CanvasNodeSplitDialog dataUrl={splitNode.metadata.content} open={Boolean(splitNode)} onClose={() => setSplitNodeId(null)} onConfirm={(params) => void splitImageNode(splitNode!, params)} /> : null}
 
                 {storyboardNode ? <CanvasStoryboardDialog open={Boolean(storyboardNode)} onClose={() => setStoryboardNodeId(null)} onConfirm={(size) => void generateStoryboardGrid(storyboardNode, size)} /> : null}
+
+                <CanvasCharacterCardDialog open={Boolean(characterCardNodeId)} sourceNode={characterCardNode} onClose={() => setCharacterCardNodeId(null)} onSubmit={(input) => void createCharacterCard(characterCardNodeId!, input)} />
 
                 {upscaleNode?.metadata?.content ? (
                     <CanvasNodeUpscaleDialog dataUrl={upscaleNode.metadata.content} open={Boolean(upscaleNode)} onClose={() => setUpscaleNodeId(null)} onConfirm={(params) => void upscaleImageNode(upscaleNode!, params)} />

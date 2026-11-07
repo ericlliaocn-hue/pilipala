@@ -1,10 +1,10 @@
 import type { ReactNode } from "react";
-import { Brush, Camera, Copy, FileText, Grid2x2, Lock, LockOpen, Maximize2, Scissors, Sparkles, Upload, ZoomIn } from "lucide-react";
+import { Brush, Camera, Copy, FileText, Grid2x2, Lock, LockOpen, Maximize2, Scissors, Sparkles, Upload, UserRound, ZoomIn } from "lucide-react";
 
 import type { CanvasNodeData } from "@/types/canvas";
 import i18n from "@/i18n";
 
-export type ImageNodeActionToolId = "copyPrompt" | "reversePrompt" | "replace" | "resize" | "maskEdit" | "crop" | "split" | "upscale" | "superResolve" | "angle" | "view";
+export type ImageNodeActionToolId = "copyPrompt" | "reversePrompt" | "characterCard" | "replace" | "resize" | "maskEdit" | "crop" | "split" | "upscale" | "superResolve" | "angle" | "view";
 export type ImageQuickToolId = "info" | "delete" | "saveAsset" | "download" | ImageNodeActionToolId;
 
 export type ImageToolHandlers = {
@@ -19,6 +19,7 @@ export type ImageToolHandlers = {
     onViewImage: (node: CanvasNodeData) => void;
     onCopyPrompt: (node: CanvasNodeData) => void;
     onReversePrompt: (node: CanvasNodeData) => void;
+    onCharacterCard: (node: CanvasNodeData) => void;
 };
 
 export type ImageToolDefinition = {
@@ -56,6 +57,14 @@ export const imageToolDefinitions: ImageToolDefinition[] = [
         title: () => i18n.t("canvas.imageTools.reversePromptTitle"),
         icon: () => <FileText className="size-4" />,
         run: (node, handlers) => handlers.onReversePrompt(node),
+    },
+    {
+        id: "characterCard",
+        defaultVisible: true,
+        label: () => i18n.t("canvas.imageTools.characterCard"),
+        title: () => i18n.t("canvas.imageTools.characterCardTitle"),
+        icon: () => <UserRound className="size-4" />,
+        run: (node, handlers) => handlers.onCharacterCard(node),
     },
     {
         id: "replace",
